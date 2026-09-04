@@ -35,11 +35,12 @@ export default function HomePage() {
           DealGuard
         </div>
         <nav className="nav-links">
-          <a href={withBase("/#why")}>Why</a>
-          <a href={withBase("/demo/")}>Demo</a>
-          <a href={withBase("/reputation/")}>Reputation</a>
+          <a href={withBase("/how-it-works/")}>How it works</a>
+          <a href={withBase("/quickstart/")}>Quickstart</a>
+          <a href={withBase("/evidence-explorer/")}>Explorer</a>
+          <a href={withBase("/features/")}>Features</a>
+          <a href={withBase("/use-cases/")}>Use cases</a>
           <a href={withBase("/docs/")}>Docs</a>
-          <a href={withBase("/evidence/")}>Evidence</a>
           <a
             className="btn btn-ghost"
             href="https://github.com/valentinzubok/DealGuard"
@@ -73,13 +74,13 @@ export default function HomePage() {
               >
                 Open GenLayer Studio
               </a>
-              <button className="btn btn-ghost" type="button" onClick={downloadIntegrityPack}>
-                Generate integrity pack
-              </button>
+              <a className="btn btn-ghost" href={withBase("/evidence-explorer/")}>
+                Evidence explorer
+              </a>
+              <a className="btn btn-ghost" href={withBase("/quickstart/")}>
+                Quickstart
+              </a>
             </div>
-            {packStatus && (
-              <p style={{ color: "var(--teal)", marginTop: "0.75rem" }}>{packStatus}</p>
-            )}
           </div>
           <div className="hero-visual">
             <img src={withBase("/cover.png")} alt="DealGuard product cover" />
@@ -106,6 +107,47 @@ export default function HomePage() {
               <h3>Integrity pack</h3>
               <p>CODE_SNAPSHOT + schemas + CI artifact for Agent Tank stewards.</p>
             </article>
+          </div>
+        </section>
+
+        <section className="wrap section" id="product">
+          <h2>Product pages</h2>
+          <p className="lead">Built for Agent Tank jurors — architecture, guided Studio path, interactive integrity pack.</p>
+          <div className="grid-3">
+            <a className="card" href={withBase("/how-it-works/")}>
+              <h3>How it works</h3>
+              <p>Sequence diagram of freeze → escrow → adjudicate → cross_check.</p>
+            </a>
+            <a className="card" href={withBase("/quickstart/")}>
+              <h3>Quickstart</h3>
+              <p>Studio steps with mock screenshots and live contract links.</p>
+            </a>
+            <a className="card" href={withBase("/evidence-explorer/")}>
+              <h3>Evidence explorer</h3>
+              <p>Interactive integrity pack builder from CODE_SNAPSHOT.</p>
+            </a>
+            <a className="card" href={withBase("/features/")}>
+              <h3>Features</h3>
+              <p>create_deal, fund, dispute, pin, store_evidence — with examples.</p>
+            </a>
+            <a className="card" href={withBase("/use-cases/")}>
+              <h3>Use cases</h3>
+              <p>Freelance, marketplace, SaaS SLA scenarios.</p>
+            </a>
+            <a className="card" href={withBase("/api-reference/")}>
+              <h3>API · Security · Changelog</h3>
+              <p>
+                <span style={{ color: "var(--teal)" }}>/api-reference</span> ·{" "}
+                <span style={{ color: "var(--teal)" }}>/security</span> ·{" "}
+                <span style={{ color: "var(--teal)" }}>/changelog</span>
+              </p>
+            </a>
+          </div>
+          <div className="cta-row" style={{ marginTop: "1rem" }}>
+            <button className="btn btn-ghost" type="button" onClick={downloadIntegrityPack}>
+              Download integrity pack
+            </button>
+            {packStatus && <span style={{ color: "var(--teal)" }}>{packStatus}</span>}
           </div>
         </section>
 

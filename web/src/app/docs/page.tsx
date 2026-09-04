@@ -56,7 +56,31 @@ export default function DocsPage() {
       </p>
       <h1 style={{ fontFamily: "Syne, sans-serif" }}>Docs</h1>
       <p style={{ color: "var(--muted)" }}>
-        Quick search across Agent Tank topics. Full guide:{" "}
+        Product:{" "}
+        <a href={withBase("/how-it-works/")} style={{ color: "var(--teal)" }}>
+          how-it-works
+        </a>
+        {" · "}
+        <a href={withBase("/quickstart/")} style={{ color: "var(--teal)" }}>
+          quickstart
+        </a>
+        {" · "}
+        <a href={withBase("/evidence-explorer/")} style={{ color: "var(--teal)" }}>
+          evidence-explorer
+        </a>
+        {" · "}
+        <a href={withBase("/features/")} style={{ color: "var(--teal)" }}>
+          features
+        </a>
+        {" · "}
+        <a href={withBase("/api-reference/")} style={{ color: "var(--teal)" }}>
+          api
+        </a>
+        {" · "}
+        <a href={withBase("/security/")} style={{ color: "var(--teal)" }}>
+          security
+        </a>
+        . Guides:{" "}
         <a href={withBase("/docs/AGENT_TANK.md")} style={{ color: "var(--teal)" }}>
           AGENT_TANK.md
         </a>

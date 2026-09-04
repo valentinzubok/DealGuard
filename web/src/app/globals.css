@@ -263,13 +263,149 @@ a {
   justify-content: space-between;
 }
 
+.seq {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.seq-row {
+  display: grid;
+  grid-template-columns: 3rem 7.5rem 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.seq-n {
+  width: 3rem;
+  height: 3rem;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(45, 212, 191, 0.12);
+  color: var(--teal);
+  font-family: Syne, sans-serif;
+  font-weight: 700;
+}
+
+.seq-actor {
+  font-weight: 600;
+  color: var(--gold);
+  font-size: 0.95rem;
+}
+
+.seq-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.seq-body code {
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.seq-body span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.studio-shot {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: #050b10;
+}
+
+.studio-shot-bar {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.studio-shot-bar span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #334155;
+}
+
+.studio-shot-bar span:nth-child(1) {
+  background: #f87171;
+}
+.studio-shot-bar span:nth-child(2) {
+  background: #fbbf24;
+}
+.studio-shot-bar span:nth-child(3) {
+  background: #34d399;
+}
+
+.studio-shot-body {
+  padding: 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  color: #c7e7e1;
+  white-space: pre-wrap;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.api-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.api-table th,
+.api-table td {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.api-table th {
+  color: var(--muted);
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.api-table tr:last-child td {
+  border-bottom: none;
+}
+
 @media (max-width: 860px) {
   .grid-3,
   .shots {
     grid-template-columns: 1fr;
   }
 
-  .nav-links span {
-    display: none;
+  .nav-links {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 70%;
+  }
+
+  .seq-row {
+    grid-template-columns: 3rem 1fr;
+  }
+
+  .seq-actor {
+    grid-column: 2;
+  }
+
+  .seq-body {
+    grid-column: 2;
   }
 }

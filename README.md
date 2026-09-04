@@ -132,13 +132,15 @@ python3 scripts/cli.py evidence generate
 
 | Path | Purpose |
 |------|---------|
-| `/` | Landing + integrity pack download + Studio CTA |
-| `/demo/` | Interactive `deal_evidence` template → payload hash |
-| `/evidence/` | Build/validate `store_evidence` JSON |
-| `/reputation/` | Reputation panel |
-| `/docs/` | Searchable docs + Studio guide |
+| `/` | Landing + product map + Studio CTA |
+| `/how-it-works/` | Architecture sequence |
+| `/quickstart/` | Studio steps + mock screenshots |
+| `/evidence-explorer/` | Interactive integrity pack |
+| `/features/` · `/use-cases/` | Capabilities + scenarios |
+| `/api-reference/` · `/security/` · `/changelog/` | Reference |
+| `/demo/` · `/evidence/` · `/docs/` · `/reputation/` | Tools |
 
-Local: `cd web && npm run dev` (no basePath). Pages build uses `NEXT_PUBLIC_BASE_PATH=/DealGuard`.
+Local: `cd web && npm run dev`. Pages build uses `NEXT_PUBLIC_BASE_PATH=/DealGuard`.
 
 
 ---
