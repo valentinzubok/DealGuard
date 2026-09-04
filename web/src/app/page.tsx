@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { withBase } from "@/lib/basePath";
 
 export default function HomePage() {
   const [packStatus, setPackStatus] = useState("");
@@ -8,7 +9,7 @@ export default function HomePage() {
   async function downloadIntegrityPack() {
     setPackStatus("Building…");
     try {
-      const res = await fetch("/api/integrity-pack");
+      const res = await fetch(withBase("/integrity-pack.json"));
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -30,15 +31,15 @@ export default function HomePage() {
     <>
       <header className="wrap nav">
         <div className="brand">
-          <img src="/logo.png" alt="DealGuard" />
+          <img src={withBase("/logo.png")} alt="DealGuard" />
           DealGuard
         </div>
         <nav className="nav-links">
-          <a href="#why">Why</a>
-          <a href="/demo">Demo</a>
-          <a href="/reputation">Reputation</a>
-          <a href="/docs">Docs</a>
-          <a href="/evidence">Evidence</a>
+          <a href={withBase("/#why")}>Why</a>
+          <a href={withBase("/demo/")}>Demo</a>
+          <a href={withBase("/reputation/")}>Reputation</a>
+          <a href={withBase("/docs/")}>Docs</a>
+          <a href={withBase("/evidence/")}>Evidence</a>
           <a
             className="btn btn-ghost"
             href="https://github.com/valentinzubok/DealGuard"
@@ -70,7 +71,7 @@ export default function HomePage() {
                 target="_blank"
                 rel="noreferrer"
               >
-                One-click Studio deploy
+                Open GenLayer Studio
               </a>
               <button className="btn btn-ghost" type="button" onClick={downloadIntegrityPack}>
                 Generate integrity pack
@@ -81,7 +82,7 @@ export default function HomePage() {
             )}
           </div>
           <div className="hero-visual">
-            <img src="/cover.png" alt="DealGuard product cover" />
+            <img src={withBase("/cover.png")} alt="DealGuard product cover" />
           </div>
         </section>
 
@@ -90,8 +91,7 @@ export default function HomePage() {
           <p className="lead">
             Agents already trade from the open web. Escrow that points at live URLs
             loses when the seller rewrites the page. DealGuard freezes evidence at
-            deal open and delivery, then settles with GenLayer consensus — the
-            missing commerce primitive next to registries and permission receipts.
+            deal open and delivery, then settles with GenLayer consensus.
           </p>
           <div className="grid-3">
             <article className="card">
@@ -109,38 +109,22 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="wrap section" id="features">
-          <h2>Built for agent-to-agent commerce</h2>
+        <section className="wrap section" id="studio">
+          <h2>What to do in GenLayer Studio</h2>
           <p className="lead">
-            Settlement that survives URL rot. Infrastructure other marketplaces compose.
+            Full RU guide:{" "}
+            <a href={withBase("/docs/STUDIO.md")} style={{ color: "var(--teal)" }}>
+              docs/STUDIO.md
+            </a>
           </p>
-          <div className="grid-3">
-            <article className="card">
-              <h3>Evidence freeze</h3>
-              <p>SHA-256 digests under strict equivalence at deal open and delivery.</p>
-            </article>
-            <article className="card">
-              <h3>LLM adjudication</h3>
-              <p>Consensus on pay_provider from frozen listing + delivery only.</p>
-            </article>
-            <article className="card">
-              <h3>Drift proof</h3>
-              <p>cross_check flags tampered listing or delivery before narratives rewrite history.</p>
-            </article>
-          </div>
-        </section>
-
-        <section className="wrap section" id="flow">
-          <h2>Lifecycle</h2>
-          <p className="lead">One deal. Six state transitions. Zero rotting links.</p>
           <div className="flow">
             {[
-              ["01", "create_deal", "Client freezes listing URLs + terms."],
-              ["02", "fund", "Client locks bookkeeping units into escrow."],
-              ["03", "submit_delivery", "Provider freezes delivery evidence."],
-              ["04", "release or dispute", "Happy path payout — or open a claim."],
-              ["05", "adjudicate", "Validators LLM-judge frozen snapshots only."],
-              ["06", "cross_check", "Prove drift. Update reputation scores."],
+              ["1", "Deploy", "Paste DealGuard.py · constructor = your 0x"],
+              ["2", "Pin", "pin_code_snapshot from CODE_SNAPSHOT.json"],
+              ["3", "Credit", "credit(client, \"1000\") as owner"],
+              ["4", "Deal", "create_deal → fund → submit_delivery"],
+              ["5", "Settle", "release or dispute → adjudicate → cross_check"],
+              ["6", "Evidence", "store_evidence with condition_met JSON"],
             ].map(([n, title, body]) => (
               <div className="flow-step" key={n}>
                 <div className="n">{n}</div>
@@ -151,16 +135,6 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-        </section>
-
-        <section className="wrap section" id="studio">
-          <h2>GenLayer Studio</h2>
-          <p className="lead">
-            Paste <code>contracts/DealGuard.py</code>, deploy with your wallet as owner,
-            pin <code>CODE_SNAPSHOT</code>, then run the demo flow.
-          </p>
-          <div className="code">{`# See examples/demo_flow.md
-credit → create_deal → fund → submit_delivery → dispute → adjudicate`}</div>
           <div className="cta-row" style={{ marginTop: "1.25rem" }}>
             <a
               className="btn btn-primary"
@@ -168,13 +142,13 @@ credit → create_deal → fund → submit_delivery → dispute → adjudicate`}
               target="_blank"
               rel="noreferrer"
             >
-              Open Studio
+              studio.genlayer.com
             </a>
-            <a className="btn btn-ghost" href="/docs">
-              Docs search
-            </a>
-            <a className="btn btn-ghost" href="/demo">
+            <a className="btn btn-ghost" href={withBase("/demo/")}>
               Template demo
+            </a>
+            <a className="btn btn-ghost" href={withBase("/docs/")}>
+              Docs
             </a>
           </div>
         </section>

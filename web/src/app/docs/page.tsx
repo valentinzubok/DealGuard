@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { withBase } from "@/lib/basePath";
 
 const DOCS = [
   {
@@ -51,13 +52,17 @@ export default function DocsPage() {
   return (
     <main className="wrap" style={{ padding: "2rem 0 4rem" }}>
       <p>
-        <a href="/">← DealGuard</a>
+        <a href={withBase("/")}>← DealGuard</a>
       </p>
       <h1 style={{ fontFamily: "Syne, sans-serif" }}>Docs</h1>
       <p style={{ color: "var(--muted)" }}>
         Quick search across Agent Tank topics. Full guide:{" "}
-        <a href="/docs/AGENT_TANK.md" style={{ color: "var(--teal)" }}>
+        <a href={withBase("/docs/AGENT_TANK.md")} style={{ color: "var(--teal)" }}>
           AGENT_TANK.md
+        </a>
+        {" · "}
+        <a href={withBase("/docs/STUDIO.md")} style={{ color: "var(--teal)" }}>
+          STUDIO.md
         </a>
         .
       </p>
@@ -88,7 +93,7 @@ export default function DocsPage() {
 
       <h2 style={{ fontFamily: "Syne, sans-serif", marginTop: "2.5rem" }}>demo_flow.md</h2>
       <p style={{ color: "var(--muted)" }}>
-        <a href="/docs/demo_flow.md" style={{ color: "var(--teal)" }}>
+        <a href={withBase("/docs/demo_flow.md")} style={{ color: "var(--teal)" }}>
           Open examples/demo_flow.md
         </a>
       </p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type CSSProperties } from "react";
+import { withBase } from "@/lib/basePath";
 
 type Evidence = {
   dealUrl: string;
@@ -71,7 +72,7 @@ export default function EvidencePage() {
   return (
     <main className="wrap" style={{ padding: "2rem 0 4rem" }}>
       <p>
-        <a href="/">← DealGuard</a>
+        <a href={withBase("/")}>← DealGuard</a>
       </p>
       <h1 style={{ fontFamily: "Syne, sans-serif" }}>Evidence desk</h1>
       <p style={{ color: "var(--muted)", maxWidth: "40rem" }}>

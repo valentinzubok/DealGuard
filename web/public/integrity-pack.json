@@ -1,0 +1,44 @@
+{
+  "name": "DealGuard integrity pack",
+  "generated_at": "2026-09-04T10:17:13Z",
+  "files": {
+    "CODE_SNAPSHOT.json": {
+      "sha256": "66598b00bc561f61b360e4fab3f4be0b41bf57bf88e1d12de99c63c4d29e1c16",
+      "content": {
+        "commit": "cd2866a604556d11b4e28e5d0fd9c01b2525e224",
+        "evidence_hash": "4dd638a76c355c2ddaaf274e68f09348f80e63cb03535e365a9dbe9204fa78b1",
+        "evidence_hash_algo": "sha256(git_rev_parse_HEAD)",
+        "contract_hash": "66bee33605a6e151c2ded2860b7624ac17c1865815911d05b21b5b43dfe78791",
+        "contract_hash_algo": "sha256(contracts/DealGuard.py)",
+        "timestamp": "2026-09-04T10:17:13Z",
+        "note": "Pinned code snapshot for Agent Tank validators"
+      }
+    },
+    "schemas/code_snapshot.schema.json": {
+      "sha256": "b4e7fcc36d49b9439219caf7339d22dbcd63812f81a0b05bf2a6bbc1075697ac"
+    },
+    "schemas/condition_met.schema.json": {
+      "sha256": "b7d335a3c5a5e2cefeeaa5f17d162533c8e9c38e0feff1bc0593a02cc91c1096"
+    },
+    "templates/deal_evidence.json": {
+      "sha256": "2bc95b9cf06e02fc3026b854896613a9e7bb3be24d8b7c486bd140431a1cb87a"
+    },
+    ".github/workflows/ci.yml": {
+      "sha256": "12d2c2e0cf63597dc1a77e82fd180c2fd23b65a87d0d1ed9a8947ef41a7711ff"
+    },
+    "contracts/DealGuard.py": {
+      "sha256": "66bee33605a6e151c2ded2860b7624ac17c1865815911d05b21b5b43dfe78791"
+    }
+  },
+  "pin_code_snapshot_args": {
+    "commit": "cd2866a604556d11b4e28e5d0fd9c01b2525e224",
+    "evidence_hash": "4dd638a76c355c2ddaaf274e68f09348f80e63cb03535e365a9dbe9204fa78b1",
+    "contract_hash": "66bee33605a6e151c2ded2860b7624ac17c1865815911d05b21b5b43dfe78791",
+    "timestamp": "2026-09-04T10:17:13Z"
+  },
+  "checks": [
+    "python3 scripts/update_code_snapshot.py verify",
+    "python3 scripts/validate_schemas.py",
+    "python3 -m pytest -q"
+  ]
+}

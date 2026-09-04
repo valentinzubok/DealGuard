@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dealguard.local/schemas/code_snapshot.json",
+  "title": "DealGuard CODE_SNAPSHOT",
+  "type": "object",
+  "required": [
+    "commit",
+    "evidence_hash",
+    "contract_hash",
+    "timestamp",
+    "evidence_hash_algo",
+    "contract_hash_algo"
+  ],
+  "properties": {
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "evidence_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Must equal sha256(commit)"
+    },
+    "evidence_hash_algo": {
+      "type": "string",
+      "const": "sha256(git_rev_parse_HEAD)"
+    },
+    "contract_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "contract_hash_algo": {
+      "type": "string",
+      "const": "sha256(contracts/DealGuard.py)"
+    },
+    "timestamp": { "type": "string", "minLength": 10 },
+    "note": { "type": "string" }
+  },
+  "additionalProperties": false
+}

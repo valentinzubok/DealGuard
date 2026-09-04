@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { withBase } from "@/lib/basePath";
 
 type Rep = {
   address: string;
@@ -78,7 +79,7 @@ export default function ReputationPage() {
   return (
     <main className="wrap" style={{ padding: "2rem 0 4rem" }}>
       <p>
-        <a href="/">← DealGuard</a>
+        <a href={withBase("/")}>← DealGuard</a>
       </p>
       <h1 style={{ fontFamily: "Syne, sans-serif" }}>Reputation panel</h1>
       <p style={{ color: "var(--muted)", maxWidth: "42rem" }}>

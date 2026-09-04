@@ -113,7 +113,18 @@ python3 scripts/cli.py evidence generate
 
 ## Site
 
-Landing + how-to: [`web/`](web/) — deploy to Vercel.
+**Live (GitHub Pages):** https://valentinzubok.github.io/DealGuard/
+
+| Path | Purpose |
+|------|---------|
+| `/` | Landing + integrity pack download + Studio CTA |
+| `/demo/` | Interactive `deal_evidence` template → payload hash |
+| `/evidence/` | Build/validate `store_evidence` JSON |
+| `/reputation/` | Reputation panel |
+| `/docs/` | Searchable docs + Studio guide |
+
+Local: `cd web && npm run dev` (no basePath). Pages build uses `NEXT_PUBLIC_BASE_PATH=/DealGuard`.
+
 
 ---
 

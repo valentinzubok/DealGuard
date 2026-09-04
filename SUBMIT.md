@@ -25,7 +25,7 @@ snapshot  →  schema  →  pytest  →  integrity pack  →  Studio deploy  →
 | Project name | `DealGuard` |
 | Logo | `assets/logo.jpg` |
 | GitHub | https://github.com/valentinzubok/DealGuard |
-| Website | https://web-ten-self-75.vercel.app · `/evidence` · `/demo` · `/docs` · `/reputation` |
+| Website | **https://valentinzubok.github.io/DealGuard/** · `/demo/` · `/docs/` · `/evidence/` · `/reputation/` |
 | License | [`LICENSE.md`](LICENSE.md) |
 
 ## One-liner (≤180)
