@@ -1,0 +1,16 @@
+{
+  "id": "dealguard/v1/condition-met",
+  "title": "DealGuard deal evidence",
+  "description": "Validators check dealUrl, signature, amount, and condition_met against frozen deal state.",
+  "required_fields": ["dealUrl", "signature", "amount", "condition_met"],
+  "example": {
+    "dealUrl": "https://test-server.genlayer.com/static/genvm/hello.html",
+    "signature": "0xabababababababababababababababababababababababababababababababab",
+    "amount": "100",
+    "condition_met": true,
+    "metadata": {
+      "deal_id": "demo-1",
+      "note": "Delivery page contains Hello"
+    }
+  }
+}

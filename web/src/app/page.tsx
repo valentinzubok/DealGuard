@@ -1,4 +1,31 @@
+"use client";
+
+import { useState } from "react";
+
 export default function HomePage() {
+  const [packStatus, setPackStatus] = useState("");
+
+  async function downloadIntegrityPack() {
+    setPackStatus("Building…");
+    try {
+      const res = await fetch("/api/integrity-pack");
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "dealguard-integrity-pack.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      setPackStatus(`Pack ready · commit ${data.pin_code_snapshot_args?.commit?.slice(0, 8)}…`);
+    } catch (e) {
+      setPackStatus(`Failed: ${e instanceof Error ? e.message : "error"}`);
+    }
+  }
+
   return (
     <>
       <header className="wrap nav">
@@ -7,10 +34,11 @@ export default function HomePage() {
           DealGuard
         </div>
         <nav className="nav-links">
-          <a href="#how">How it works</a>
-          <a href="#features">Features</a>
-          <a href="/evidence">Evidence UI</a>
-          <a href="#studio">Studio</a>
+          <a href="#why">Why</a>
+          <a href="/demo">Demo</a>
+          <a href="/reputation">Reputation</a>
+          <a href="/docs">Docs</a>
+          <a href="/evidence">Evidence</a>
           <a
             className="btn btn-ghost"
             href="https://github.com/valentinzubok/DealGuard"
@@ -36,48 +64,68 @@ export default function HomePage() {
               frozen evidence — not a page that rewrote itself overnight.
             </p>
             <div className="cta-row">
-              <a className="btn btn-primary" href="#studio">
-                Deploy in Studio
+              <a
+                className="btn btn-primary"
+                href="https://studio.genlayer.com/contracts"
+                target="_blank"
+                rel="noreferrer"
+              >
+                One-click Studio deploy
               </a>
-              <a className="btn btn-ghost" href="#flow">
-                See the lifecycle
-              </a>
+              <button className="btn btn-ghost" type="button" onClick={downloadIntegrityPack}>
+                Generate integrity pack
+              </button>
             </div>
+            {packStatus && (
+              <p style={{ color: "var(--teal)", marginTop: "0.75rem" }}>{packStatus}</p>
+            )}
           </div>
           <div className="hero-visual">
             <img src="/cover.png" alt="DealGuard product cover" />
           </div>
         </section>
 
+        <section className="wrap section" id="why">
+          <h2>Why DealGuard</h2>
+          <p className="lead">
+            Agents already trade from the open web. Escrow that points at live URLs
+            loses when the seller rewrites the page. DealGuard freezes evidence at
+            deal open and delivery, then settles with GenLayer consensus — the
+            missing commerce primitive next to registries and permission receipts.
+          </p>
+          <div className="grid-3">
+            <article className="card">
+              <h3>URL rot kills disputes</h3>
+              <p>Listings change between purchase and adjudication. Freeze first.</p>
+            </article>
+            <article className="card">
+              <h3>LLM on frozen facts</h3>
+              <p>Validators judge snapshots + terms, not a moving target.</p>
+            </article>
+            <article className="card">
+              <h3>Integrity pack</h3>
+              <p>CODE_SNAPSHOT + schemas + CI artifact for Agent Tank stewards.</p>
+            </article>
+          </div>
+        </section>
+
         <section className="wrap section" id="features">
           <h2>Built for agent-to-agent commerce</h2>
           <p className="lead">
-            Domain registries and permission receipts are useful. Settlement
-            that survives URL rot is mandatory. DealGuard is the escrow layer
-            other agent marketplaces plug into.
+            Settlement that survives URL rot. Infrastructure other marketplaces compose.
           </p>
           <div className="grid-3">
             <article className="card">
               <h3>Evidence freeze</h3>
-              <p>
-                Validators fetch https pages independently and seal SHA-256
-                digests under strict equivalence at deal open and delivery.
-              </p>
+              <p>SHA-256 digests under strict equivalence at deal open and delivery.</p>
             </article>
             <article className="card">
               <h3>LLM adjudication</h3>
-              <p>
-                Disputes judge frozen listing + delivery against natural-language
-                terms. Consensus compares only the pay_provider decision.
-              </p>
+              <p>Consensus on pay_provider from frozen listing + delivery only.</p>
             </article>
             <article className="card">
               <h3>Drift proof</h3>
-              <p>
-                cross_check re-fetches live URLs later and flags tampered listing
-                or delivery before reputation or payout narratives rewrite
-                history.
-              </p>
+              <p>cross_check flags tampered listing or delivery before narratives rewrite history.</p>
             </article>
           </div>
         </section>
@@ -105,35 +153,14 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="wrap section" id="how">
-          <h2>Product surface</h2>
-          <p className="lead">Console mocks of the create and adjudicate paths.</p>
-          <div className="shots">
-            <figure className="shot">
-              <img src="/feature-create-deal.png" alt="Create deal screen" />
-              <figcaption>create_deal — freeze listing evidence at open</figcaption>
-            </figure>
-            <figure className="shot">
-              <img src="/feature-adjudicate.png" alt="Adjudicate screen" />
-              <figcaption>adjudicate — settle from frozen evidence</figcaption>
-            </figure>
-          </div>
-        </section>
-
         <section className="wrap section" id="studio">
-          <h2>Try it in GenLayer Studio</h2>
+          <h2>GenLayer Studio</h2>
           <p className="lead">
-            Paste <code>contracts/DealGuard.py</code>, deploy with your wallet as
-            owner, then run the smoke path with the stable GenLayer hello fixture.
+            Paste <code>contracts/DealGuard.py</code>, deploy with your wallet as owner,
+            pin <code>CODE_SNAPSHOT</code>, then run the demo flow.
           </p>
-          <div className="code">{`credit(you, "1000")
-create_deal("demo-1", provider, "Must contain Hello",
-  '["https://test-server.genlayer.com/static/genvm/hello.html"]', "100")
-fund("demo-1")
-submit_delivery("demo-1", '["https://test-server.genlayer.com/static/genvm/hello.html"]')
-dispute("demo-1", "Check delivery against terms")
-adjudicate("demo-1")
-cross_check("demo-1")`}</div>
+          <div className="code">{`# See examples/demo_flow.md
+credit → create_deal → fund → submit_delivery → dispute → adjudicate`}</div>
           <div className="cta-row" style={{ marginTop: "1.25rem" }}>
             <a
               className="btn btn-primary"
@@ -143,13 +170,11 @@ cross_check("demo-1")`}</div>
             >
               Open Studio
             </a>
-            <a
-              className="btn btn-ghost"
-              href="https://github.com/valentinzubok/DealGuard"
-              target="_blank"
-              rel="noreferrer"
-            >
-              View source
+            <a className="btn btn-ghost" href="/docs">
+              Docs search
+            </a>
+            <a className="btn btn-ghost" href="/demo">
+              Template demo
             </a>
           </div>
         </section>
@@ -157,7 +182,12 @@ cross_check("demo-1")`}</div>
 
       <footer className="wrap footer">
         <div>DealGuard · Agent Tank · Agentic Commerce Infrastructure</div>
-        <div>MIT © 2026 Valentyn Zubok · Built on GenLayer</div>
+        <div>
+          <a href="https://github.com/valentinzubok/DealGuard/blob/main/LICENSE.md">
+            MIT License
+          </a>{" "}
+          · © 2026 Valentyn Zubok
+        </div>
       </footer>
     </>
   );

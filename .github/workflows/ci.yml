@@ -15,19 +15,31 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Verify CODE_SNAPSHOT matches HEAD + contract
+      - name: Verify CODE_SNAPSHOT matches contract file hashes
         run: python3 scripts/update_code_snapshot.py verify
 
-      - name: Generate + validate evidence fixture
+      - name: Validate CODE_SNAPSHOT + condition_met schemas
+        run: |
+          # CODE_SNAPSHOT.json ↔ schemas/code_snapshot.schema.json
+          # templates/deal_evidence.json example ↔ schemas/condition_met.schema.json
+          python3 scripts/validate_schemas.py
+
+      - name: Generate + validate evidence fixture (condition_met)
         run: |
           python3 scripts/build_evidence.py generate -o artifacts/evidence.json
           python3 scripts/build_evidence.py validate artifacts/evidence.json
 
-      - name: Unit tests
+      - name: Build integrity pack artifact
+        run: python3 scripts/generate_integrity_pack.py
+
+      - name: Unit tests (create_deal, fund, submit_delivery, dispute, …)
         run: python3 -m pytest -q
 
-      - name: Contract source present
-        run: test -f contracts/DealGuard.py && wc -l contracts/DealGuard.py
+      - name: Upload integrity pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: dealguard-integrity-pack
+          path: artifacts/integrity-pack.json
 
   web-build:
     runs-on: ubuntu-latest

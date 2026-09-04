@@ -126,4 +126,4 @@ Portal notes: [`SUBMIT.md`](SUBMIT.md)
 
 ## License
 
-MIT © 2026 Valentyn Zubok
+Released under the [MIT License](LICENSE.md). © 2026 Valentyn Zubok
