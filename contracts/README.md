@@ -19,8 +19,11 @@ Intelligent Contract: [`DealGuard.py`](DealGuard.py)
 | `get_reputation` | view | `user` | wins/losses/score |
 | `get_stats` | view | — | Aggregate counts |
 | `get_events` | view | — | Recent events |
-| `get_owner` | view | — | Owner address |
-| `transfer_ownership` | write | `new_owner` | Owner only |
+| `pin_code_snapshot` | write | `commit`, `evidence_hash`, `contract_hash`, `timestamp` | **onlyOwner** — pin `sha256(git HEAD)` + contract hash |
+| `store_evidence` | write | `deal_id`, `evidence_json` | Parties/owner — PromptRegistry-style `condition_met` payload |
+| `get_code_snapshot` | view | — | Pinned integrity snapshot |
+| `get_evidence` | view | `deal_id` | Stored evidence JSON |
+| `get_criteria_template` | view | — | Required fields + example |
 
 ## Status machine
 

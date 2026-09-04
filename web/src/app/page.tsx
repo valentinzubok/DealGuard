@@ -9,6 +9,7 @@ export default function HomePage() {
         <nav className="nav-links">
           <a href="#how">How it works</a>
           <a href="#features">Features</a>
+          <a href="/evidence">Evidence UI</a>
           <a href="#studio">Studio</a>
           <a
             className="btn btn-ghost"

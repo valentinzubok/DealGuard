@@ -91,6 +91,26 @@ See full method map: [`contracts/README.md`](contracts/README.md)
 
 ---
 
+## Agent Tank integrity pack
+
+| Piece | Location |
+|---|---|
+| Code snapshot | [`CODE_SNAPSHOT.json`](CODE_SNAPSHOT.json) · `pin_code_snapshot` |
+| Evidence schema | [`schemas/condition_met.schema.json`](schemas/condition_met.schema.json) |
+| Criteria template | [`templates/deal_evidence.json`](templates/deal_evidence.json) · `get_criteria_template` |
+| CI | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
+| CLI | `python3 scripts/cli.py …` |
+| Evidence UI | `/evidence` on the product site |
+| Docs | [`docs/AGENT_TANK.md`](docs/AGENT_TANK.md) |
+
+```bash
+python3 scripts/update_code_snapshot.py verify
+python3 -m pytest -q
+python3 scripts/cli.py evidence generate
+```
+
+---
+
 ## Site
 
 Landing + how-to: [`web/`](web/) — deploy to Vercel.

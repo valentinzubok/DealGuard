@@ -1,9 +1,7 @@
-node_modules/
-.next/
-.env.local
-.DS_Store
-__pycache__/
-.pytest_cache/
-.coverage
-dist/
-.vercel/
+artifacts/
+*.pyc
+.Python
+venv/
+web/node_modules/
+web/.next/
+web/.vercel/

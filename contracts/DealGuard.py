@@ -12,9 +12,11 @@ import re
 #   credit → create_deal (freeze listings) → fund → submit_delivery (freeze)
 #   → release (happy path) | dispute → adjudicate (LLM on FROZEN evidence)
 #   → cross_check (prove URL rot / tamper)
+#   → pin_code_snapshot / store_evidence (Agent Tank integrity + deal proofs)
 #
 # Balances are bookkeeping units for Studionet demos (not native GL transfer).
 # Adjudication compares ONLY the boolean/string decision fields under consensus.
+# Admin writes (credit, pin_code_snapshot, transfer_ownership) are onlyOwner.
 
 MAX_ID_LEN = 64
 MAX_TERMS_LEN = 1500
@@ -200,6 +202,110 @@ def _judge_deal(terms: str, claim: str, listing_blob: str, delivery_blob: str) -
     )
 
 
+# PromptRegistry-style criteria: what validators expect in store_evidence payloads.
+CRITERIA_TEMPLATE = {
+    "id": "dealguard/v1/condition-met",
+    "title": "DealGuard deal evidence",
+    "description": (
+        "Validators check dealUrl (HTTPS listing or delivery page), signature "
+        "(0x hex attestation), amount (uint string matching escrow), metadata, "
+        "and condition_met (bool). condition_met=true only when frozen evidence "
+        "supports payout to the provider under deal terms."
+    ),
+    "required_fields": [
+        "dealUrl",
+        "signature",
+        "amount",
+        "condition_met",
+    ],
+    "fields": {
+        "dealUrl": {
+            "type": "string",
+            "format": "https-url",
+            "what": "Canonical HTTPS URL of the deal listing or delivery page",
+        },
+        "signature": {
+            "type": "string",
+            "format": "0x-hex",
+            "what": "Party attestation signature over deal_id|dealUrl|amount",
+        },
+        "amount": {
+            "type": "string",
+            "format": "uint256-decimal",
+            "what": "Escrow amount as decimal integer string (bookkeeping units)",
+        },
+        "condition_met": {
+            "type": "boolean",
+            "what": "True if delivery satisfies terms for provider payout",
+        },
+        "metadata": {
+            "type": "object",
+            "what": "Optional extras: deal_id, commit, notes, listing_hash",
+        },
+    },
+    "example": {
+        "dealUrl": "https://test-server.genlayer.com/static/genvm/hello.html",
+        "signature": "0x" + ("ab" * 32),
+        "amount": "100",
+        "condition_met": True,
+        "metadata": {
+            "deal_id": "demo-1",
+            "note": "Delivery page contains Hello",
+        },
+    },
+}
+
+
+def _require_hex_sig(sig: str) -> str:
+    s = str(sig).strip()
+    if not s.startswith("0x") or len(s) < 10:
+        raise Exception("signature must be 0x-hex")
+    body = s[2:]
+    if len(body) > 132 or any(c not in "0123456789abcdefABCDEF" for c in body):
+        raise Exception("signature hex invalid")
+    return s
+
+
+def _parse_evidence_payload(evidence_json: str) -> dict:
+    try:
+        data = json.loads(evidence_json)
+    except Exception:
+        raise Exception("evidence_json must be JSON object")
+    if not isinstance(data, dict):
+        raise Exception("evidence_json must be an object")
+    deal_url = str(data.get("dealUrl", "")).strip()
+    if not HTTPS_URL_RE.match(deal_url):
+        raise Exception("dealUrl must be https://")
+    sig = _require_hex_sig(str(data.get("signature", "")))
+    amount = _parse_amount(data.get("amount", "0"))
+    if "condition_met" not in data or not isinstance(data.get("condition_met"), bool):
+        raise Exception("condition_met must be a boolean")
+    meta = data.get("metadata", {})
+    if meta is None:
+        meta = {}
+    if not isinstance(meta, dict):
+        raise Exception("metadata must be an object")
+    return {
+        "dealUrl": deal_url,
+        "signature": sig,
+        "amount": amount,
+        "condition_met": bool(data["condition_met"]),
+        "metadata": meta,
+        "payload_hash": _hash_text(
+            json.dumps(
+                {
+                    "dealUrl": deal_url,
+                    "signature": sig,
+                    "amount": amount,
+                    "condition_met": bool(data["condition_met"]),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        ),
+    }
+
+
 class DealGuard(gl.Contract):
     owner: str
     balances_json: str
@@ -208,6 +314,9 @@ class DealGuard(gl.Contract):
     reputation_json: str
     events_json: str
     seq: str
+    # Appended fields (Agent Tank integrity + structured deal evidence)
+    code_snapshot_json: str
+    evidences_json: str
 
     def __init__(self, owner_address: str):
         self.owner = _require_address("owner_address", owner_address)
@@ -217,6 +326,8 @@ class DealGuard(gl.Contract):
         self.reputation_json = "{}"
         self.events_json = "[]"
         self.seq = "0"
+        self.code_snapshot_json = "{}"
+        self.evidences_json = "{}"
 
     def _only_owner(self):
         if str(gl.message.sender_address) != self.owner:
@@ -315,6 +426,81 @@ class DealGuard(gl.Contract):
         self._only_owner()
         self.owner = _require_address("new_owner", new_owner)
         self._append_event("OwnershipTransferred", {"to": self.owner})
+
+    @gl.public.write
+    def pin_code_snapshot(
+        self,
+        commit: str,
+        evidence_hash: str,
+        contract_hash: str,
+        timestamp: str,
+    ) -> None:
+        """Owner-only: pin git HEAD evidence hash + contract source hash for validators.
+
+        evidence_hash MUST be sha256(git rev-parse HEAD) hex.
+        contract_hash MUST be sha256(contracts/DealGuard.py) hex.
+        CI rejects pushes where CODE_SNAPSHOT.json drifts without updating these pins.
+        """
+        self._only_owner()
+        c = str(commit).strip().lower()
+        if len(c) != 40 or any(ch not in "0123456789abcdef" for ch in c):
+            raise Exception("commit must be 40-char lowercase git SHA")
+        eh = str(evidence_hash).strip().lower()
+        chash = str(contract_hash).strip().lower()
+        if len(eh) != 64 or len(chash) != 64:
+            raise Exception("hashes must be 64-char sha256 hex")
+        for h in (eh, chash):
+            if any(ch not in "0123456789abcdef" for ch in h):
+                raise Exception("hash must be hex")
+        expected = _hash_text(c)
+        if eh != expected:
+            raise Exception("evidence_hash must equal sha256(commit)")
+        ts = _sanitize_text("timestamp", timestamp, 64)
+        snap = {
+            "commit": c,
+            "evidence_hash": eh,
+            "contract_hash": chash,
+            "timestamp": ts,
+            "hash_algo": HASH_ALGO,
+            "pinned_by": str(gl.message.sender_address),
+        }
+        self.code_snapshot_json = json.dumps(snap, sort_keys=True, separators=(",", ":"))
+        self._append_event("CodeSnapshotPinned", {"commit": c, "evidence_hash": eh})
+
+    @gl.public.write
+    def store_evidence(self, deal_id: str, evidence_json: str) -> None:
+        """Attach structured PromptRegistry-style evidence to a deal (parties or owner)."""
+        did = _normalize_id(deal_id)
+        deals = self._load_deals()
+        if did not in deals:
+            raise Exception("unknown deal_id")
+        deal = deals[did]
+        caller = str(gl.message.sender_address)
+        if caller not in (deal["client"], deal["provider"], self.owner):
+            raise Exception("only deal parties or owner may store evidence")
+        parsed = _parse_evidence_payload(evidence_json)
+        if int(parsed["amount"]) != int(deal["amount"]):
+            raise Exception("evidence amount must match deal amount")
+        evidences = json.loads(self.evidences_json)
+        evidences[did] = {
+            **parsed,
+            "deal_id": did,
+            "submitter": caller,
+        }
+        self.evidences_json = json.dumps(evidences, sort_keys=True, separators=(",", ":"))
+        deal["evidence_payload_hash"] = parsed["payload_hash"]
+        deal["condition_met"] = parsed["condition_met"]
+        deals[did] = deal
+        self._save_deals(deals)
+        self._append_event(
+            "EvidenceStored",
+            {
+                "id": did,
+                "condition_met": parsed["condition_met"],
+                "payload_hash": parsed["payload_hash"],
+                "submitter": caller,
+            },
+        )
 
     @gl.public.write
     def credit(self, user: str, amount: str) -> None:
@@ -653,3 +839,23 @@ class DealGuard(gl.Contract):
     @gl.public.view
     def get_events(self) -> str:
         return self.events_json
+
+    @gl.public.view
+    def get_code_snapshot(self) -> str:
+        """Pinned git commit + evidence/contract hashes for Agent Tank validators."""
+        if not self.code_snapshot_json or self.code_snapshot_json == "{}":
+            return json.dumps({"error": "code snapshot not pinned"})
+        return self.code_snapshot_json
+
+    @gl.public.view
+    def get_evidence(self, deal_id: str) -> str:
+        evidences = json.loads(self.evidences_json)
+        did = str(deal_id).strip()
+        if did not in evidences:
+            return json.dumps({"error": "no evidence for deal_id"})
+        return json.dumps(evidences[did], sort_keys=True)
+
+    @gl.public.view
+    def get_criteria_template(self) -> str:
+        """PromptRegistry-style template: dealUrl, signature, amount, condition_met."""
+        return json.dumps(CRITERIA_TEMPLATE, sort_keys=True)
