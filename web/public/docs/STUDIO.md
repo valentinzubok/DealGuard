@@ -1,7 +1,10 @@
 # GenLayer Studio — что делать (DealGuard)
 
-Сайт (после Pages): https://valentinzubok.github.io/DealGuard/  
-Контракт: [`contracts/DealGuard.py`](../contracts/DealGuard.py)
+**Live contract (Studionet):** [`0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D`](https://explorer-studio.genlayer.com/address/0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D)  
+**Full tx record:** [`DEPLOY.md`](../DEPLOY.md)  
+**Сайт:** https://valentinzubok.github.io/DealGuard/
+
+Ниже — как повторить деплой / что уже pinned on-chain.
 
 ---
 

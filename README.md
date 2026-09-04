@@ -65,6 +65,21 @@ sequenceDiagram
 
 ---
 
+## Live Studionet deploy
+
+| Item | Link |
+|------|------|
+| **Contract** | [`0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D`](https://explorer-studio.genlayer.com/address/0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D) |
+| **Deploy tx** | [`0x09b84e3b…`](https://explorer-studio.genlayer.com/tx/0x09b84e3ba39a88b1fbb2d2cdd8df994877f3444864827d88023caae83a67b5c3) |
+| **pin_code_snapshot** | [`0x0d17d1ef…`](https://explorer-studio.genlayer.com/tx/0x0d17d1effc69a47718283014b3d0b941a174cb9db896db7aa239c3ac01d45c11) |
+| **create_deal(demo-1)** | [`0xdb2e5980…`](https://explorer-studio.genlayer.com/tx/0xdb2e59803482ea0ff10d11bbc128f5b6323c131808d88d7a4bc2063a0d9310e7) |
+| **store_evidence** | [`0x0cd0bd31…`](https://explorer-studio.genlayer.com/tx/0x0cd0bd31256e670deb6e4418cd8d94d96b83452d4d2551500eee6337cdf224fc) |
+| **Full record** | [`DEPLOY.md`](DEPLOY.md) |
+
+Verified reads: `get_code_snapshot`, `get_criteria_template`, `get_deal("demo-1")`, `get_evidence("demo-1")`.
+
+---
+
 ## Quick start (GenLayer Studio)
 
 1. Open [studio.genlayer.com/contracts](https://studio.genlayer.com/contracts)
