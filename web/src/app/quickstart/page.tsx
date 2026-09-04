@@ -5,17 +5,20 @@ import { withBase } from "@/lib/basePath";
 
 const STEPS = [
   {
-    title: "Open Studio",
-    body: "Go to studio.genlayer.com/contracts and connect MetaMask (Studionet).",
-    shot: `Studio · New contract
+    title: "Open Studio (or use the live contract)",
+    body: "Connect MetaMask to Studionet. Prefer the already-deployed address for the pitch — redeploy only if you need a fresh owner.",
+    tip: "If MetaMask rejects a tx, check network = Studionet and that you have Studio gas. Provider must ≠ client when creating a deal.",
+    shot: `Studio · Contracts
 ────────────────────────
-Paste contracts/DealGuard.py
-Constructor: 0x6f6077eC…046e3
-[ Deploy ]`,
+Live: 0xe8D6d1D1…B02D
+  or paste contracts/DealGuard.py
+Constructor (new deploy): your 0x…
+[ Open / Deploy ]`,
   },
   {
-    title: "Pin integrity",
-    body: "Call pin_code_snapshot with CODE_SNAPSHOT.json fields (or scripts/cli.py studio-calls).",
+    title: "Pin integrity (owner only)",
+    body: "Call pin_code_snapshot with fields from CODE_SNAPSHOT.json. Already FINALIZED on the live contract — re-pin only after intentional snapshot update.",
+    tip: "Build a pack locally via Evidence explorer, then paste args into Studio.",
     shot: `pin_code_snapshot(
   "f7b12fc26209eb3259c43b64c62060209f517f66",
   "0d9c1a110981ef729b07e651dccd13a9c6aebabc…",
@@ -26,7 +29,8 @@ Constructor: 0x6f6077eC…046e3
   },
   {
     title: "Credit + create deal",
-    body: "Owner credits client. Client create_deal with provider ≠ client (e.g. 0x1111…).",
+    body: "Owner credits the client, then create_deal with a provider address that is not the client (placeholder 0x1111… is fine for listing freeze demo).",
+    tip: "Listing URL fixture: https://test-server.genlayer.com/static/genvm/hello.html",
     shot: `credit(0x6f60…46e3, "1000")
 create_deal(
   "demo-1",
@@ -39,7 +43,8 @@ create_deal(
   },
   {
     title: "Store evidence + verify reads",
-    body: "store_evidence with condition_met JSON. Demo reads for the pitch.",
+    body: "store_evidence with condition_met JSON. For the jury pitch, call the four view methods below — no second wallet required.",
+    tip: "Full fund → delivery → dispute path needs Account 2 as provider. Documented in DEPLOY.md.",
     shot: `store_evidence("demo-1", {…condition_met:true})
 get_code_snapshot()
 get_criteria_template()
@@ -54,7 +59,7 @@ export default function QuickstartPage() {
     <PageShell
       active="/quickstart/"
       title="Quickstart"
-      lead="Get from zero to a pitch-ready Studionet demo in ~15 minutes. Full RU guide in docs/STUDIO.md."
+      lead="Zero → pitch-ready Studionet demo in ~15 minutes. Mock Studio panels below match the live deploy."
     >
       <div className="cta-row" style={{ marginBottom: "1.5rem" }}>
         <a
@@ -76,16 +81,20 @@ export default function QuickstartPage() {
         <a className="btn btn-ghost" href={withBase("/docs/STUDIO.md")}>
           STUDIO.md
         </a>
+        <a className="btn btn-ghost" href={withBase("/evidence-explorer/")}>
+          Integrity pack UI
+        </a>
       </div>
 
       <div className="flow">
         {STEPS.map((s, i) => (
-          <div key={s.title} style={{ display: "grid", gap: "0.75rem", marginBottom: "1.5rem" }}>
+          <div key={s.title} style={{ display: "grid", gap: "0.75rem", marginBottom: "1.75rem" }}>
             <div className="flow-step">
               <div className="n">{String(i + 1).padStart(2, "0")}</div>
               <div>
                 <strong>{s.title}</strong>
                 <p style={{ margin: "0.25rem 0 0", color: "var(--muted)" }}>{s.body}</p>
+                <p className="tip-callout">{s.tip}</p>
               </div>
             </div>
             <div className="studio-shot">
@@ -93,7 +102,7 @@ export default function QuickstartPage() {
                 <span />
                 <span />
                 <span />
-                Studio mock
+                Studio · step {i + 1}
               </div>
               <div className="studio-shot-body">{s.shot}</div>
             </div>
@@ -113,8 +122,8 @@ get_owner()`}</pre>
           <a className="btn btn-ghost" href={withBase("/how-it-works/")}>
             Architecture
           </a>
-          <a className="btn btn-ghost" href={withBase("/evidence-explorer/")}>
-            Build integrity pack
+          <a className="btn btn-ghost" href={withBase("/features/")}>
+            Method table
           </a>
         </div>
       </section>

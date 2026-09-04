@@ -12,24 +12,43 @@ type Snap = {
   note?: string;
 };
 
-const LOG = [
+type Row = { area: string; change: string };
+
+type Entry = {
+  version: string;
+  date: string;
+  rows: Row[];
+};
+
+const LOG: Entry[] = [
+  {
+    version: "0.2.0 · Product site",
+    date: "2026-09-04",
+    rows: [
+      { area: "Site", change: "/how-it-works/ sequence + /quickstart/ Studio mocks" },
+      { area: "Site", change: "/evidence-explorer/ interactive integrity pack" },
+      { area: "Site", change: "/features/, /use-cases/, /api-reference/, /security/" },
+      { area: "Docs", change: "README Getting Started, CONTRIBUTING, issue/PR templates" },
+      { area: "CI", change: "web typecheck (tsc --noEmit) in GitHub Actions" },
+    ],
+  },
   {
     version: "0.1.0 · Studionet",
     date: "2026-09-04",
-    items: [
-      "Deployed DealGuard.py to Studionet 0xe8D6d1D1…B02D",
-      "pin_code_snapshot FINALIZED (commit f7b12fc…)",
-      "demo-1 create_deal + store_evidence (condition_met true)",
-      "Site: how-it-works, quickstart, evidence-explorer, features, use-cases, API, security",
+    rows: [
+      { area: "Contract", change: "Deploy DealGuard.py → 0xe8D6d1D1…B02D" },
+      { area: "Integrity", change: "pin_code_snapshot FINALIZED (commit f7b12fc…)" },
+      { area: "Demo", change: "demo-1 create_deal + store_evidence (condition_met true)" },
+      { area: "Site", change: "GitHub Pages export + STUDIO.md operator guide" },
     ],
   },
   {
     version: "0.1.0-rc · Agent Tank pack",
     date: "2026-09-04",
-    items: [
-      "CODE_SNAPSHOT + condition_met schemas + CI",
-      "CLI + /evidence UI",
-      "GitHub Pages static export",
+    rows: [
+      { area: "Pack", change: "CODE_SNAPSHOT + condition_met schemas + integrity pack" },
+      { area: "CI", change: "snapshot verify, schemas, pytest, web build" },
+      { area: "Tools", change: "CLI + /evidence UI" },
     ],
   },
 ];
@@ -51,33 +70,74 @@ export default function ChangelogPage() {
     >
       {snap && (
         <div className="card" style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ marginTop: 0 }}>Current CODE_SNAPSHOT</h3>
-          <p style={{ margin: 0, color: "var(--muted)", fontFamily: "ui-monospace, monospace", fontSize: "0.85rem" }}>
-            commit {snap.commit}
-            <br />
-            evidence_hash {snap.evidence_hash}
-            <br />
-            contract_hash {snap.contract_hash}
-            <br />
-            timestamp {snap.timestamp}
+          <h3 style={{ marginTop: 0 }}>Current CODE_SNAPSHOT (on-chain pin)</h3>
+          <div className="table-wrap">
+            <table className="api-table">
+              <tbody>
+                <tr>
+                  <th>commit</th>
+                  <td>
+                    <code>{snap.commit}</code>
+                  </td>
+                </tr>
+                <tr>
+                  <th>evidence_hash</th>
+                  <td>
+                    <code>{snap.evidence_hash}</code>
+                  </td>
+                </tr>
+                <tr>
+                  <th>contract_hash</th>
+                  <td>
+                    <code>{snap.contract_hash}</code>
+                  </td>
+                </tr>
+                <tr>
+                  <th>timestamp</th>
+                  <td>
+                    <code>{snap.timestamp}</code>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style={{ margin: "0.75rem 0 0", color: "var(--muted)", fontSize: "0.9rem" }}>
+            Full history also in{" "}
+            <a href="https://github.com/valentinzubok/DealGuard/blob/main/CHANGELOG.md" style={{ color: "var(--teal)" }}>
+              CHANGELOG.md
+            </a>
+            .
           </p>
         </div>
       )}
 
       <div className="flow">
         {LOG.map((e) => (
-          <div className="flow-step" key={e.version}>
+          <div className="flow-step" key={e.version} style={{ alignItems: "flex-start" }}>
             <div className="n">·</div>
-            <div>
+            <div style={{ width: "100%" }}>
               <strong>
                 {e.version}{" "}
                 <span style={{ color: "var(--muted)", fontWeight: 400 }}>{e.date}</span>
               </strong>
-              <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.1rem", color: "var(--muted)" }}>
-                {e.items.map((it) => (
-                  <li key={it}>{it}</li>
-                ))}
-              </ul>
+              <div className="table-wrap" style={{ marginTop: "0.75rem" }}>
+                <table className="api-table">
+                  <thead>
+                    <tr>
+                      <th>Area</th>
+                      <th>What changed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {e.rows.map((r) => (
+                      <tr key={r.area + r.change}>
+                        <td>{r.area}</td>
+                        <td>{r.change}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         ))}

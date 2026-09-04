@@ -9,10 +9,25 @@
 </p>
 
 <p align="center">
+  <a href="https://valentinzubok.github.io/DealGuard/"><img src="https://img.shields.io/badge/Website-Live-0ea5a0?style=for-the-badge" alt="Website" /></a>
+  <a href="https://explorer-studio.genlayer.com/address/0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D"><img src="https://img.shields.io/badge/Studionet-Contract-111827?style=for-the-badge" alt="Contract" /></a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/GenLayer-Intelligent%20Contract-0ea5a0?style=flat-square" alt="GenLayer" />
   <img src="https://img.shields.io/badge/Track-Agentic%20Commerce%20Infrastructure-111827?style=flat-square" alt="Track" />
   <img src="https://img.shields.io/badge/Agent%20Tank-2026-ef4444?style=flat-square" alt="Agent Tank" />
+  <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT" />
 </p>
+
+| | |
+|---|---|
+| **Website** | https://valentinzubok.github.io/DealGuard/ |
+| **Contract** | [`0xe8D6d1D1…B02D`](https://explorer-studio.genlayer.com/address/0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D) |
+| **Studio** | https://studio.genlayer.com/contracts |
+| **Quickstart** | [Site guide](https://valentinzubok.github.io/DealGuard/quickstart/) · [`docs/STUDIO.md`](docs/STUDIO.md) |
+| **Evidence explorer** | https://valentinzubok.github.io/DealGuard/evidence-explorer/ |
+| **Changelog** | [`CHANGELOG.md`](CHANGELOG.md) · [site](https://valentinzubok.github.io/DealGuard/changelog/) |
 
 ---
 
@@ -50,6 +65,71 @@ sequenceDiagram
 
 ---
 
+## Stack (what this repo is)
+
+| Layer | Tech | Notes |
+|-------|------|--------|
+| Intelligent Contract | Python GenLayer IC | [`contracts/DealGuard.py`](contracts/DealGuard.py) — **not** Solidity / genlayer-js SPA |
+| Integrity pack | JSON + schemas + CI | `CODE_SNAPSHOT.json`, `schemas/`, `scripts/` |
+| Product site | **Next.js 15 + TypeScript** static export | `web/` → GitHub Pages (`/DealGuard` basePath) |
+| CI / CD | GitHub Actions | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) + [Pages](.github/workflows/pages.yml) |
+
+---
+
+## Getting Started
+
+### 1) Clone & verify contract tests
+
+```bash
+git clone https://github.com/valentinzubok/DealGuard.git
+cd DealGuard
+python3 -m pip install -r requirements-dev.txt
+python3 scripts/update_code_snapshot.py verify
+python3 scripts/validate_schemas.py
+python3 -m pytest -q
+```
+
+### 2) Run the website locally
+
+```bash
+cd web
+npm install
+npm run dev
+# → http://localhost:3010
+```
+
+Optional typecheck:
+
+```bash
+cd web && npx tsc --noEmit
+```
+
+For a Pages-like build (with basePath):
+
+```bash
+cd web
+NEXT_PUBLIC_BASE_PATH=/DealGuard NEXT_BASE_PATH=/DealGuard npm run build
+# static files in web/out/
+```
+
+No `.env` is required for the static site. Studio / MetaMask connect against Studionet in the browser.
+
+### 3) Deploy / use the live demo on Studio
+
+1. Open [GenLayer Studio](https://studio.genlayer.com/contracts)
+2. Paste [`contracts/DealGuard.py`](contracts/DealGuard.py) **or** open the [already-deployed contract](https://explorer-studio.genlayer.com/address/0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D)
+3. Follow [Quickstart on the site](https://valentinzubok.github.io/DealGuard/quickstart/) or [`examples/demo_flow.md`](examples/demo_flow.md)
+
+Demo listing URL:
+
+```json
+["https://test-server.genlayer.com/static/genvm/hello.html"]
+```
+
+**Pitch path (read-only, no second wallet):** `get_code_snapshot` → `get_criteria_template` → `get_deal("demo-1")` → `get_evidence("demo-1")`. See [`DEPLOY.md`](DEPLOY.md).
+
+---
+
 ## Features
 
 | Capability | Detail |
@@ -62,6 +142,8 @@ sequenceDiagram
 | `cross_check` | Prove SHA-256 drift on listing or delivery |
 | Reputation | wins / losses / score per address |
 | Studio-safe | JSON string state; owner as ctor arg |
+
+Full tables: [Features](https://valentinzubok.github.io/DealGuard/features/) · [API reference](https://valentinzubok.github.io/DealGuard/api-reference/)
 
 ---
 
@@ -76,34 +158,6 @@ sequenceDiagram
 | **store_evidence** | [`0x0cd0bd31…`](https://explorer-studio.genlayer.com/tx/0x0cd0bd31256e670deb6e4418cd8d94d96b83452d4d2551500eee6337cdf224fc) |
 | **Full record** | [`DEPLOY.md`](DEPLOY.md) |
 
-Verified reads: `get_code_snapshot`, `get_criteria_template`, `get_deal("demo-1")`, `get_evidence("demo-1")`.
-
----
-
-## Quick start (GenLayer Studio)
-
-1. Open [studio.genlayer.com/contracts](https://studio.genlayer.com/contracts)
-2. Paste [`contracts/DealGuard.py`](contracts/DealGuard.py)
-3. Deploy with constructor = your wallet `0x…`
-4. Follow [`examples/demo_flow.md`](examples/demo_flow.md)
-
-Demo fixture URL:
-
-```json
-["https://test-server.genlayer.com/static/genvm/hello.html"]
-```
-
----
-
-## API (summary)
-
-See full method map: [`contracts/README.md`](contracts/README.md)
-
-| Write | View |
-|---|---|
-| `credit`, `create_deal`, `fund`, `submit_delivery` | `get_deal`, `list_deals` |
-| `release`, `dispute`, `adjudicate`, `cross_check` | `get_balance`, `get_reputation`, `get_stats` |
-
 ---
 
 ## Agent Tank integrity pack
@@ -112,10 +166,10 @@ See full method map: [`contracts/README.md`](contracts/README.md)
 |---|---|
 | Code snapshot | [`CODE_SNAPSHOT.json`](CODE_SNAPSHOT.json) · `pin_code_snapshot` |
 | Evidence schema | [`schemas/condition_met.schema.json`](schemas/condition_met.schema.json) |
-| Criteria template | [`templates/deal_evidence.json`](templates/deal_evidence.json) · `get_criteria_template` |
+| Criteria template | [`templates/deal_evidence.json`](templates/deal_evidence.json) |
 | CI | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
 | CLI | `python3 scripts/cli.py …` |
-| Evidence UI | `/evidence` on the product site |
+| Explorer UI | [/evidence-explorer](https://valentinzubok.github.io/DealGuard/evidence-explorer/) |
 | Docs | [`docs/AGENT_TANK.md`](docs/AGENT_TANK.md) |
 
 ```bash
@@ -126,9 +180,9 @@ python3 scripts/cli.py evidence generate
 
 ---
 
-## Site
+## Site map
 
-**Live (GitHub Pages):** https://valentinzubok.github.io/DealGuard/
+**Live:** https://valentinzubok.github.io/DealGuard/
 
 | Path | Purpose |
 |------|---------|
@@ -140,15 +194,13 @@ python3 scripts/cli.py evidence generate
 | `/api-reference/` · `/security/` · `/changelog/` | Reference |
 | `/demo/` · `/evidence/` · `/docs/` · `/reputation/` | Tools |
 
-Local: `cd web && npm run dev`. Pages build uses `NEXT_PUBLIC_BASE_PATH=/DealGuard`.
-
-
 ---
 
-## Agent Tank
+## Contributing
 
-Track: **Agentic Commerce Infrastructure**  
-Portal notes: [`SUBMIT.md`](SUBMIT.md)
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Issues and PRs welcome for docs, tests, and Studio UX polish.
+
+Portal notes: [`SUBMIT.md`](SUBMIT.md) · Track: **Agentic Commerce Infrastructure**
 
 ---
 

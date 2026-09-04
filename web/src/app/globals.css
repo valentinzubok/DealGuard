@@ -347,6 +347,16 @@ a {
   background: #34d399;
 }
 
+.tip-callout {
+  margin: 0.55rem 0 0;
+  padding: 0.55rem 0.75rem;
+  border-left: 3px solid var(--teal);
+  background: color-mix(in srgb, var(--teal) 12%, transparent);
+  color: var(--ink, #e8f1f0);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
 .studio-shot-body {
   padding: 1rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
