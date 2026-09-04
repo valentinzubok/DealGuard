@@ -193,6 +193,7 @@ python3 scripts/cli.py evidence generate
 | `/features/` · `/use-cases/` | Capabilities + scenarios |
 | `/api-reference/` · `/security/` · `/changelog/` | Reference |
 | `/demo/` · `/evidence/` · `/docs/` · `/reputation/` | Tools |
+| `/submit/` | Agent Tank Portal paste kit |
 
 ---
 

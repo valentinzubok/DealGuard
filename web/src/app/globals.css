@@ -357,6 +357,19 @@ a {
   line-height: 1.45;
 }
 
+.status-line {
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.92rem;
+}
+
+.status-line.ok {
+  color: var(--teal);
+}
+
+.status-line.error {
+  color: #f87171;
+}
+
 .studio-shot-body {
   padding: 1rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

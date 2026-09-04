@@ -22,6 +22,15 @@ type Entry = {
 
 const LOG: Entry[] = [
   {
+    version: "0.2.1 · Operator UX",
+    date: "2026-09-04",
+    rows: [
+      { area: "Site", change: "Fix /demo/ basePath; loading/error status lines" },
+      { area: "Site", change: "Demo mode fixture + favorites; /submit/ paste kit" },
+      { area: "API", change: "Public openapi.json for Studio method map" },
+    ],
+  },
+  {
     version: "0.2.0 · Product site",
     date: "2026-09-04",
     rows: [

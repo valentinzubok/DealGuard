@@ -1,0 +1,172 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "DealGuard Intelligent Contract",
+    "version": "0.2.0",
+    "description": "GenLayer Studio surface for contracts/DealGuard.py (not a REST API). Methods are write/view on Studionet.",
+    "license": { "name": "MIT" }
+  },
+  "servers": [
+    {
+      "url": "https://explorer-studio.genlayer.com/address/0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D",
+      "description": "Live Studionet contract"
+    }
+  ],
+  "paths": {
+    "/create_deal": {
+      "post": {
+        "summary": "create_deal",
+        "description": "Freeze listing URLs under SHA-256 consensus.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["deal_id", "provider", "terms", "listing_urls_json", "amount"],
+                "properties": {
+                  "deal_id": { "type": "string" },
+                  "provider": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+                  "terms": { "type": "string" },
+                  "listing_urls_json": { "type": "string", "description": "JSON array of https URLs" },
+                  "amount": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Deal opened with listing_items" } }
+      }
+    },
+    "/fund": {
+      "post": {
+        "summary": "fund",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["deal_id"],
+                "properties": { "deal_id": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Escrow funded" } }
+      }
+    },
+    "/submit_delivery": {
+      "post": {
+        "summary": "submit_delivery",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["deal_id", "delivery_urls_json"],
+                "properties": {
+                  "deal_id": { "type": "string" },
+                  "delivery_urls_json": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Delivery frozen" } }
+      }
+    },
+    "/release": {
+      "post": {
+        "summary": "release",
+        "responses": { "200": { "description": "Pay provider" } }
+      }
+    },
+    "/dispute": {
+      "post": {
+        "summary": "dispute",
+        "responses": { "200": { "description": "Claim opened" } }
+      }
+    },
+    "/adjudicate": {
+      "post": {
+        "summary": "adjudicate",
+        "responses": { "200": { "description": "settled_pay | settled_refund" } }
+      }
+    },
+    "/cross_check": {
+      "post": {
+        "summary": "cross_check",
+        "responses": { "200": { "description": "Tamper flags" } }
+      }
+    },
+    "/pin_code_snapshot": {
+      "post": {
+        "summary": "pin_code_snapshot (onlyOwner)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["commit", "evidence_hash", "contract_hash", "timestamp"],
+                "properties": {
+                  "commit": { "type": "string" },
+                  "evidence_hash": { "type": "string" },
+                  "contract_hash": { "type": "string" },
+                  "timestamp": { "type": "string", "format": "date-time" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Pinned" } }
+      }
+    },
+    "/store_evidence": {
+      "post": {
+        "summary": "store_evidence",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ConditionMet" }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Evidence stored + payload_hash" } }
+      }
+    },
+    "/get_code_snapshot": {
+      "get": {
+        "summary": "get_code_snapshot",
+        "responses": { "200": { "description": "Pinned CODE_SNAPSHOT fields" } }
+      }
+    },
+    "/get_deal": {
+      "get": {
+        "summary": "get_deal",
+        "parameters": [{ "name": "deal_id", "in": "query", "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Deal JSON" } }
+      }
+    },
+    "/get_evidence": {
+      "get": {
+        "summary": "get_evidence",
+        "parameters": [{ "name": "deal_id", "in": "query", "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Evidence JSON" } }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ConditionMet": {
+        "type": "object",
+        "required": ["dealUrl", "signature", "amount", "condition_met"],
+        "properties": {
+          "dealUrl": { "type": "string", "format": "uri" },
+          "signature": { "type": "string" },
+          "amount": { "type": "string" },
+          "condition_met": { "type": "boolean" },
+          "metadata": { "type": "object" }
+        }
+      }
+    }
+  }
+}

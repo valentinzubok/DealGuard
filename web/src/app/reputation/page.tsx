@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { withBase } from "@/lib/basePath";
+import { PageShell } from "@/components/SiteChrome";
 
 type Rep = {
   address: string;
@@ -14,6 +14,22 @@ type Rep = {
 
 const SEED: Rep[] = [
   {
+    address: "0x6f6077eC587f2964d30aCE8D803Edc27988046e3",
+    wins: 0,
+    losses: 0,
+    completed: 0,
+    disputed: 0,
+    score: 0,
+  },
+  {
+    address: "0x1111111111111111111111111111111111111111",
+    wins: 0,
+    losses: 0,
+    completed: 0,
+    disputed: 0,
+    score: 0,
+  },
+  {
     address: "0xaaaa…bbbb",
     wins: 3,
     losses: 1,
@@ -21,28 +37,14 @@ const SEED: Rep[] = [
     disputed: 1,
     score: 5,
   },
-  {
-    address: "0x1111…2222",
-    wins: 2,
-    losses: 0,
-    completed: 2,
-    disputed: 0,
-    score: 4,
-  },
-  {
-    address: "0xcccc…dddd",
-    wins: 1,
-    losses: 2,
-    completed: 3,
-    disputed: 2,
-    score: 0,
-  },
 ];
 
 export default function ReputationPage() {
   const [rows, setRows] = useState<Rep[]>(SEED);
   const [address, setAddress] = useState("");
   const [raw, setRaw] = useState("");
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
 
   const sorted = useMemo(
     () => [...rows].sort((a, b) => b.score - a.score),
@@ -50,10 +52,12 @@ export default function ReputationPage() {
   );
 
   function importJson() {
+    setError("");
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         setRows(parsed);
+        setStatus(`Imported ${parsed.length} rows.`);
         return;
       }
       if (parsed && typeof parsed === "object" && parsed.address) {
@@ -61,34 +65,38 @@ export default function ReputationPage() {
           const rest = prev.filter((r) => r.address !== parsed.address);
           return [...rest, parsed as Rep];
         });
+        setStatus(`Upserted ${parsed.address}`);
+        return;
       }
+      setError("Expected object with address or an array of reputation rows.");
     } catch {
-      alert("Invalid JSON — paste get_reputation / get_stats style objects");
+      setError("Invalid JSON — paste get_reputation / get_stats style objects.");
     }
   }
 
   function lookup() {
+    setError("");
     const hit = rows.find((r) => r.address.toLowerCase().includes(address.toLowerCase()));
     if (!hit) {
-      alert("No local row — after Studio deploy, paste get_reputation(address) JSON below");
+      setError("No local row — after Studio settle, paste get_reputation(address) JSON below.");
+      setStatus("");
       return;
     }
-    alert(`${hit.address}\nscore=${hit.score} wins=${hit.wins} losses=${hit.losses}`);
+    setStatus(
+      `${hit.address} · score=${hit.score} wins=${hit.wins} losses=${hit.losses}`,
+    );
   }
 
   return (
-    <main className="wrap" style={{ padding: "2rem 0 4rem" }}>
-      <p>
-        <a href={withBase("/")}>← DealGuard</a>
-      </p>
-      <h1 style={{ fontFamily: "Syne, sans-serif" }}>Reputation panel</h1>
-      <p style={{ color: "var(--muted)", maxWidth: "42rem" }}>
-        On-chain scores come from <code>get_reputation(address)</code> and{" "}
-        <code>get_stats()</code> after deals settle. This panel previews ranking
-        locally and lets you paste Studio view JSON.
-      </p>
+    <PageShell
+      active="/reputation/"
+      title="Reputation panel"
+      lead="On-chain scores come from get_reputation(address) and get_stats() after deals settle. Preview ranking locally or paste Studio view JSON."
+    >
+      {error && <p className="status-line error">Error: {error}</p>}
+      {status && <p className="status-line ok">{status}</p>}
 
-      <div className="cta-row" style={{ marginTop: "1rem" }}>
+      <div className="cta-row" style={{ marginTop: "0.5rem" }}>
         <input
           placeholder="0x address filter"
           value={address}
@@ -111,7 +119,9 @@ export default function ReputationPage() {
       <div className="grid-3" style={{ marginTop: "1.5rem" }}>
         {sorted.map((r) => (
           <article className="card" key={r.address}>
-            <h3 style={{ fontFamily: "Syne, sans-serif", marginTop: 0 }}>{r.address}</h3>
+            <h3 style={{ fontFamily: "Syne, sans-serif", marginTop: 0, fontSize: "0.95rem" }}>
+              {r.address}
+            </h3>
             <p>
               score <strong style={{ color: "var(--teal)" }}>{r.score}</strong>
             </p>
@@ -144,6 +154,6 @@ export default function ReputationPage() {
           Import reputation row
         </button>
       </div>
-    </main>
+    </PageShell>
   );
 }

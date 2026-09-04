@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type CSSProperties } from "react";
+import { PageShell } from "@/components/SiteChrome";
 import { withBase } from "@/lib/basePath";
 
 type Evidence = {
@@ -37,51 +38,63 @@ export default function EvidencePage() {
   });
   const [payloadHash, setPayloadHash] = useState("");
   const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const errors = useMemo(() => validate(form), [form]);
   const json = useMemo(() => JSON.stringify(form, null, 2), [form]);
 
   async function onHash() {
+    setError("");
     if (errors.length) {
-      setStatus(errors.join("; "));
+      setError(errors.join("; "));
+      setStatus("");
       return;
     }
-    const core = {
-      dealUrl: form.dealUrl,
-      signature: form.signature,
-      amount: Number(form.amount),
-      condition_met: form.condition_met,
-    };
-    const canonical = JSON.stringify(core, Object.keys(core).sort());
-    // Match Python separators=(",", ":") + sort_keys
-    const compact = JSON.stringify(core, ["amount", "condition_met", "dealUrl", "signature"]);
-    const h = await sha256Hex(compact);
-    setPayloadHash(h);
-    setStatus("Payload validated. Copy JSON into Studio store_evidence(deal_id, json).");
+    setBusy(true);
+    try {
+      const core = {
+        dealUrl: form.dealUrl,
+        signature: form.signature,
+        amount: Number(form.amount),
+        condition_met: form.condition_met,
+      };
+      const compact = JSON.stringify(core, ["amount", "condition_met", "dealUrl", "signature"]);
+      const h = await sha256Hex(compact);
+      setPayloadHash(h);
+      setStatus("Payload validated. Copy JSON into Studio store_evidence(deal_id, json).");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Hash failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function download() {
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "dealguard-evidence.json";
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "dealguard-evidence.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus("Downloaded dealguard-evidence.json");
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Download failed");
+    }
   }
 
   return (
-    <main className="wrap" style={{ padding: "2rem 0 4rem" }}>
-      <p>
-        <a href={withBase("/")}>← DealGuard</a>
-      </p>
-      <h1 style={{ fontFamily: "Syne, sans-serif" }}>Evidence desk</h1>
-      <p style={{ color: "var(--muted)", maxWidth: "40rem" }}>
-        Build a PromptRegistry-style <code>condition_met</code> payload, verify locally, then
-        submit via GenLayer Studio <code>store_evidence</code> (or CLI). Validators read the same
-        schema from <code>get_criteria_template</code>.
-      </p>
+    <PageShell
+      active="/evidence/"
+      title="Evidence desk"
+      lead="Build a condition_met payload, verify locally, submit via Studio store_evidence. Validators use the same schema from get_criteria_template."
+    >
+      {error && <p className="status-line error">Error: {error}</p>}
+      {status && <p className="status-line ok">{status}</p>}
 
-      <div className="grid-3" style={{ marginTop: "1.5rem" }}>
+      <div className="grid-3" style={{ marginTop: "0.5rem" }}>
         <label className="card">
           dealUrl
           <input
@@ -137,20 +150,27 @@ export default function EvidencePage() {
       </label>
 
       <div className="cta-row" style={{ marginTop: "1.25rem" }}>
-        <button className="btn btn-primary" type="button" onClick={onHash}>
-          Validate + hash
+        <button className="btn btn-primary" type="button" onClick={onHash} disabled={busy}>
+          {busy ? "Hashing…" : "Validate + hash"}
         </button>
         <button className="btn btn-ghost" type="button" onClick={download}>
           Download JSON
         </button>
-        <a className="btn btn-ghost" href="https://studio.genlayer.com/contracts" target="_blank" rel="noreferrer">
+        <a className="btn btn-ghost" href={withBase("/demo/")}>
+          Demo mode
+        </a>
+        <a
+          className="btn btn-ghost"
+          href="https://studio.genlayer.com/contracts"
+          target="_blank"
+          rel="noreferrer"
+        >
           Open Studio
         </a>
       </div>
 
-      {status && <p style={{ marginTop: "1rem", color: "var(--teal)" }}>{status}</p>}
       {payloadHash && (
-        <p style={{ color: "var(--muted)" }}>
+        <p style={{ color: "var(--muted)", marginTop: "0.75rem" }}>
           payload_hash: <code>{payloadHash}</code>
         </p>
       )}
@@ -163,7 +183,7 @@ export default function EvidencePage() {
 python3 scripts/cli.py evidence validate artifacts/evidence.json
 python3 scripts/cli.py snapshot verify
 python3 scripts/cli.py studio-calls`}</pre>
-    </main>
+    </PageShell>
   );
 }
 

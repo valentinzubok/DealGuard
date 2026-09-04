@@ -9,7 +9,7 @@ Operator guide: [`docs/AGENT_TANK.md`](docs/AGENT_TANK.md) · Studio: [`docs/STU
 - [x] **3. Test** — `pytest` lifecycle suite in CI
 - [x] **4. Integrity pack** — scripts + `/integrity-pack.json` on site
 - [x] **5. Deploy** — Studionet `0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D`
-- [ ] **6. Portal** — submit form (use site `/submit/` paste kit or fields below)
+- [ ] **6. Portal** — submit form (fill below)
 
 ## Identity
 

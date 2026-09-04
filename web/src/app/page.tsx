@@ -142,6 +142,14 @@ export default function HomePage() {
                 <span style={{ color: "var(--teal)" }}>/changelog</span>
               </p>
             </a>
+            <a className="card" href={withBase("/demo/")}>
+              <h3>Demo mode</h3>
+              <p>Studionet demo-1 fixture + local payload_hash visualizer.</p>
+            </a>
+            <a className="card" href={withBase("/submit/")}>
+              <h3>Portal paste kit</h3>
+              <p>One-click copy for Agent Tank submission fields.</p>
+            </a>
           </div>
           <div className="cta-row" style={{ marginTop: "1rem" }}>
             <button className="btn btn-ghost" type="button" onClick={downloadIntegrityPack}>
@@ -199,6 +207,8 @@ export default function HomePage() {
       <footer className="wrap footer">
         <div>DealGuard · Agent Tank · Agentic Commerce Infrastructure</div>
         <div>
+          <a href={withBase("/submit/")}>Submit kit</a>
+          {" · "}
           <a href="https://github.com/valentinzubok/DealGuard/blob/main/LICENSE.md">
             MIT License
           </a>{" "}

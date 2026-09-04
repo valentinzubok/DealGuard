@@ -110,6 +110,9 @@ export default function ApiReferencePage() {
         <a className="btn btn-ghost" href={withBase("/features/")}>
           Features + examples
         </a>
+        <a className="btn btn-ghost" href={withBase("/openapi.json")}>
+          OpenAPI JSON
+        </a>
         <a className="btn btn-ghost" href={withBase("/quickstart/")}>
           Quickstart
         </a>
