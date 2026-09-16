@@ -36,7 +36,7 @@ export function DealGuardConsole() {
   const [tx, setTx] = useState("");
 
   const [dealId, setDealId] = useState("demo-1");
-  const [providerAddr, setProviderAddr] = useState(DEFAULT_PROVIDER);
+  const [providerAddr, setProviderAddr] = useState<string>(DEFAULT_PROVIDER);
   const [terms, setTerms] = useState("Deliver hello page content");
   const [amount, setAmount] = useState("100");
   const [listingUrl, setListingUrl] = useState(DEMO_URL);
