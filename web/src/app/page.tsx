@@ -35,6 +35,7 @@ export default function HomePage() {
           DealGuard
         </div>
         <nav className="nav-links">
+          <a href={withBase("/console/")}>Console</a>
           <a href={withBase("/how-it-works/")}>How it works</a>
           <a href={withBase("/quickstart/")}>Quickstart</a>
           <a href={withBase("/evidence-explorer/")}>Explorer</a>

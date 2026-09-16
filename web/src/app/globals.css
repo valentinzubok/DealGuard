@@ -362,6 +362,90 @@ a {
   font-size: 0.92rem;
 }
 
+.console {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1rem 0 2rem;
+}
+
+.console-header h1 {
+  font-family: Syne, sans-serif;
+  margin: 0 0 0.5rem;
+}
+
+.console .muted {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.console .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  margin: 0.75rem 0;
+}
+
+.console .pill {
+  display: inline-flex;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-size: 0.9rem;
+}
+
+.console .card {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.console .card h2 {
+  font-family: Syne, sans-serif;
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.console label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.console input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--ink);
+  font: inherit;
+}
+
+.console pre {
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line);
+  overflow: auto;
+  font-size: 0.8rem;
+}
+
+.console .ok {
+  color: var(--teal);
+}
+
+.console .err {
+  color: #f87171;
+}
+
+.console button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .status-line.ok {
   color: var(--teal);
 }
