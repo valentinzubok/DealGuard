@@ -41,6 +41,9 @@ jobs:
         env:
           NEXT_BASE_PATH: /DealGuard
           NEXT_PUBLIC_BASE_PATH: /DealGuard
+          NEXT_PUBLIC_DEALGUARD_ADDRESS: ${{ vars.NEXT_PUBLIC_DEALGUARD_ADDRESS }}
+          NEXT_PUBLIC_GENLAYER_RPC: ${{ vars.NEXT_PUBLIC_GENLAYER_RPC || 'https://studio-next.genlayer.com/api' }}
+          NEXT_PUBLIC_GENLAYER_EXPLORER: ${{ vars.NEXT_PUBLIC_GENLAYER_EXPLORER || 'https://explorer-studio-dev.genlayer.com' }}
         run: |
           npm ci
           npm run build
