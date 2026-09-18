@@ -1,6 +1,7 @@
-# { "Depends": "py-genlayer:15qfivjvy80800rh998pcxmd2m8va1wq2qzqhz850n8ggcr4i9q0" }
+# { "Depends": "py-genlayer:9b8kjyda2ycxyq4ea6g4yfpnydxhd52gqba5rb8dw7krkh5mn9p0" }
+# v0.3.0 — Studio Next / studio-dev (chain 61997)
 
-from genlayer import *
+import genlayer as gl
 import hashlib
 import json
 import re
@@ -119,9 +120,9 @@ def _capture_urls(urls: list) -> str:
             "status": "error",
         }
         try:
-            raw = gl.get_webpage(url, mode="text")
+            raw = gl.nondet.web.render(url, mode="text")
             if raw is None or str(raw).strip() == "":
-                raw = gl.get_webpage(url, mode="html")
+                raw = gl.nondet.web.render(url, mode="html")
             normalized = _normalize(raw if raw is not None else "")
             if normalized == "":
                 entry["status"] = "empty"
@@ -141,7 +142,7 @@ def _freeze_urls(urls: list) -> list:
     def leader_fn() -> str:
         return _capture_urls(urls)
 
-    snap_json = gl.eq_principle_strict_eq(leader_fn)
+    snap_json = gl.eq_principle.strict_eq(leader_fn)
     payload = json.loads(snap_json)
     items = payload.get("items", [])
     if len(items) != len(urls):
@@ -184,7 +185,7 @@ def _judge_deal(terms: str, claim: str, listing_blob: str, delivery_blob: str) -
         result = gl.nondet.exec_prompt(judge, response_format="json")
     except Exception:
         try:
-            result = gl.exec_prompt(judge)
+            result = gl.nondet.exec_prompt(judge)
         except Exception:
             return json.dumps({"pay_provider": False}, sort_keys=True, separators=(",", ":"))
 
@@ -306,7 +307,7 @@ def _parse_evidence_payload(evidence_json: str) -> dict:
     }
 
 
-class DealGuard(gl.Contract):
+class DealGuard(gl.contract.Contract):
     owner: str
     balances_json: str
     deals_json: str
@@ -697,7 +698,7 @@ class DealGuard(gl.Contract):
                 principle="boolean field pay_provider must be identical across validators",
             )
         except Exception:
-            verdict_json = gl.eq_principle_strict_eq(leader_fn)
+            verdict_json = gl.eq_principle.strict_eq(leader_fn)
 
         verdict = json.loads(verdict_json) if isinstance(verdict_json, str) else verdict_json
         if not isinstance(verdict, dict):
@@ -765,7 +766,7 @@ class DealGuard(gl.Contract):
                     separators=(",", ":"),
                 )
 
-            check_json = gl.eq_principle_strict_eq(leader_fn)
+            check_json = gl.eq_principle.strict_eq(leader_fn)
             check = json.loads(check_json)
             return bool(check.get("all_match"))
 
