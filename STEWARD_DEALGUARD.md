@@ -7,7 +7,7 @@
 | Connect the app to its real contract and show on-chain state | `/console/` reads `get_owner` / `get_stats` / `list_deals` / `get_deal` live from chain and writes through MetaMask (`credit`, `create_deal`, `fund`, `submit_delivery`, `release`, `dispute`, `adjudicate`). No local JSON. |
 | Current Studio Next (61997) address that source-verifies | `0x0e4619B776f849F0527B32DA86c0ED13c8841AB6` — on-chain code sha256 equals `contracts/DealGuard.py` (`d69a3444…96ad`). Command in [`STUDIO_DEV_DEPLOY.md`](STUDIO_DEV_DEPLOY.md). |
 | Reproducible app path | [`STUDIO_DEV_DEPLOY.md` → Reproducible app path](STUDIO_DEV_DEPLOY.md#reproducible-app-path) |
-| Demo video | see script below — link added to the Portal submission |
+| Demo video | [https://github.com/valentinzubok/DealGuard/blob/main/assets/demo/dealguard-demo.mp4](https://github.com/valentinzubok/DealGuard/blob/main/assets/demo/dealguard-demo.mp4): 2:45 screen recording of the live app at /console/ on Studio Dev (61997), with no mocks: create_deal → fund → submit_delivery → dispute → adjudicate (LLM) on deal `demo-4`, plus the tx on the explorer. For an unattended recording, a small EIP-1193 wallet signing with test keys is injected in place of the MetaMask popup ([`scripts/record_demo.cjs`](scripts/record_demo.cjs)); the app code path is the same as with MetaMask. Consensus waits are sped up 8x and rate-limit pauses are cut. |
 
 ## Demo video script (2–3 min)
 
@@ -40,7 +40,7 @@ On-chain state already present: demo-1 completed (create_deal → fund → submi
 Reproducible path: open /console → state loads from chain → Connect MetaMask (switches to 61997) → Get test GEN →
 create_deal → fund → (provider account) submit_delivery → dispute → adjudicate → Refresh shows the new status and verdict.
 
-Demo video: REPLACE_WITH_VIDEO_URL
+Demo video: https://github.com/valentinzubok/DealGuard/blob/main/assets/demo/dealguard-demo.mp4
 ```
 
 ## Evidence links
@@ -49,4 +49,4 @@ Demo video: REPLACE_WITH_VIDEO_URL
 2. App: https://valentinzubok.github.io/DealGuard/console/
 3. Contract: https://explorer-studio-dev.genlayer.com/address/0x0e4619B776f849F0527B32DA86c0ED13c8841AB6
 4. Deploy record: https://github.com/valentinzubok/DealGuard/blob/main/STUDIO_DEV_DEPLOY.md
-5. Demo video: REPLACE_WITH_VIDEO_URL
+5. Demo video: https://github.com/valentinzubok/DealGuard/blob/main/assets/demo/dealguard-demo.mp4

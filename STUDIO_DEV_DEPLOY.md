@@ -41,7 +41,7 @@ shasum -a 256 contracts/DealGuard.py
 | 11 | `credit(0x6f60…46e3, 1000)` | `0x5c7daac69f6da339e8e7e221c3a902689358eab1817a06eb4256fa48f405dccd` |
 | 12 | `transfer_ownership(0x6f60…46e3)` | `0x38b1fa35640dc75be50b5cfe01a494c3d9def80696eecc8b6e7cb0632359cbbc` |
 
-Resulting state (`get_stats`): `{"deals":2,"by_status":{"completed":1,"settled_pay":1},"tampered":0}`
+Resulting state after these steps (`get_stats`): `{"deals":2,"by_status":{"completed":1,"settled_pay":1},"tampered":0}`. Later deals (`demo-3`, `demo-4`) were created from the app itself while recording the demo video.
 
 ## Reproducible app path
 
@@ -51,6 +51,10 @@ Resulting state (`get_stats`): `{"deals":2,"by_status":{"completed":1,"settled_p
 4. **Get test GEN** (Studio faucet, `sim_fundAccount`) — Studio Dev charges a fee deposit on every tx.
 5. Owner: `credit(client, 1000)`. Client: `create_deal` → `fund`. Switch MetaMask to the provider account: `submit_delivery`.
 6. `release`, or `dispute` → `adjudicate`. **Refresh on-chain** shows the new status, frozen sha256 hashes and verdict.
+
+## Demo video
+
+[`assets/demo/dealguard-demo.mp4`](https://github.com/valentinzubok/DealGuard/blob/main/assets/demo/dealguard-demo.mp4): 2:45 screen recording of the live app at /console/ on Studio Dev (61997), with no mocks: create_deal → fund → submit_delivery → dispute → adjudicate (LLM) on deal `demo-4`, plus the tx on the explorer. For an unattended recording, a small EIP-1193 wallet signing with test keys is injected in place of the MetaMask popup ([`scripts/record_demo.cjs`](scripts/record_demo.cjs)); the app code path is the same as with MetaMask. Consensus waits are sped up 8x and rate-limit pauses are cut.
 
 ## Notes on Studio Dev
 

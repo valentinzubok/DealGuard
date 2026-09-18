@@ -25,6 +25,7 @@
 |---|---|
 | **Website** | https://valentinzubok.github.io/DealGuard/ |
 | **Contract (Studio Dev, chain 61997)** | [`0x0e4619B776f849F0527B32DA86c0ED13c8841AB6`](https://explorer-studio-dev.genlayer.com/address/0x0e4619B776f849F0527B32DA86c0ED13c8841AB6) · [deploy record](STUDIO_DEV_DEPLOY.md) |
+| **Demo video** | [`assets/demo/dealguard-demo.mp4`](https://github.com/valentinzubok/DealGuard/blob/main/assets/demo/dealguard-demo.mp4) (2:45, real Studio Dev txs) |
 | **Live app** | https://valentinzubok.github.io/DealGuard/console/ — MetaMask reads/writes the contract |
 | **Studio** | https://studio-dev.genlayer.com/run-debug |
 | **Quickstart** | [Site guide](https://valentinzubok.github.io/DealGuard/quickstart/) · [`docs/STUDIO.md`](docs/STUDIO.md) |
