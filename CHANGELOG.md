@@ -2,6 +2,16 @@
 
 All notable product and pin changes. On-chain integrity is anchored by [`CODE_SNAPSHOT.json`](CODE_SNAPSHOT.json) + `pin_code_snapshot` (see [`DEPLOY.md`](DEPLOY.md)).
 
+## [0.3.0] — 2026-09-18 · Studio Dev (61997) + live app
+
+| Area | Change |
+|------|--------|
+| Contract | GenVM v0.3 runner header (`py-genlayer:5jycge4q…`); deployed → `0x0e4619B776f849F0527B32DA86c0ED13c8841AB6` |
+| Chain | Full lifecycle on Studio Dev incl. `dispute` → `adjudicate` (see `STUDIO_DEV_DEPLOY.md`) |
+| App | `/console/` defaults to the live contract; `genlayer-js@2.0.0-rc.1` `studioDevnet` + fee deposits |
+| App | MetaMask stays on 61997 (no switch to 61999); faucet button; release / dispute / adjudicate |
+| Tests | Test stub covers `gl.contract.Contract` + `gl.nondet.web.render` |
+
 ## [0.2.1] — 2026-09-04 · Operator UX polish
 
 | Area | Change |

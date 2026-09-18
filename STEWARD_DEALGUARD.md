@@ -1,61 +1,52 @@
-# DealGuard — steward Action needed (Sep 2026)
+# DealGuard — steward "Action needed" response (Sep 2026)
 
-## What stewards asked
+## What stewards asked → what is delivered
 
-1. Connect the DealGuard **app** to its **real** contract and show on-chain state (not local JSON / Studio paste).
-2. Provide a **Studio Next (chain 61997)** address that source-verifies there.
-3. Provide a **demo video** (mandatory for Agent Tank / this review).
+| Request | Delivered |
+|---|---|
+| Connect the app to its real contract and show on-chain state | `/console/` reads `get_owner` / `get_stats` / `list_deals` / `get_deal` live from chain and writes through MetaMask (`credit`, `create_deal`, `fund`, `submit_delivery`, `release`, `dispute`, `adjudicate`). No local JSON. |
+| Current Studio Next (61997) address that source-verifies | `0x0e4619B776f849F0527B32DA86c0ED13c8841AB6` — on-chain code sha256 equals `contracts/DealGuard.py` (`d69a3444…96ad`). Command in [`STUDIO_DEV_DEPLOY.md`](STUDIO_DEV_DEPLOY.md). |
+| Reproducible app path | [`STUDIO_DEV_DEPLOY.md` → Reproducible app path](STUDIO_DEV_DEPLOY.md#reproducible-app-path) |
+| Demo video | see script below — link added to the Portal submission |
 
-## What is in the repo now
+## Demo video script (2–3 min)
 
-- Live wallet console: `/console/` (`web/src/app/console/page.tsx`)
-- Reads: `list_deals`, `get_deal`, `get_stats`, `get_owner`, `get_balance`
-- Writes: `credit`, `create_deal`, `fund`, `submit_delivery`
-- Network defaults: Studio Next RPC `https://studio-next.genlayer.com/api`, chain `61997`, explorer `https://explorer-studio-dev.genlayer.com`
+1. Show the README → contract address → explorer page on `explorer-studio-dev.genlayer.com`.
+2. Open https://valentinzubok.github.io/DealGuard/console/ **before** connecting: state (owner, stats, `demo-1 completed`,
+   `demo-2 settled_pay` with frozen sha256 hashes) is already loaded from chain.
+3. Connect MetaMask (owner `0x6f60…46e3`) → chain 61997 → **Get test GEN** if the fee balance is 0.
+4. `create_deal("demo-3", provider = MetaMask account #2, hello.html)` → confirm → status `open`, listing frozen.
+5. `fund` → status `funded`, escrow balance moves.
+6. Switch MetaMask to account #2 → **Get test GEN** → `submit_delivery` → status `delivered`, delivery frozen.
+7. Switch back → `dispute` → `adjudicate` → status `settled_pay` / `settled_refund` with the LLM verdict.
+8. Click the last tx link → explorer shows the transaction.
 
-## YOU must do (Studio + video)
-
-### A. Deploy on Studio Next
-
-1. Open Studio Next (studio-next / studio-dev UI for chain 61997).
-2. Paste `contracts/DealGuard.py`.
-3. Constructor = your wallet.
-4. Deploy → copy **contract address**.
-5. Smoke: `credit(you, "1000")` → `create_deal("demo-1", "0x1111…1111", "Deliver hello", '["https://test-server.genlayer.com/static/genvm/hello.html"]', "100")` → `fund("demo-1")`.
-6. Confirm on https://explorer-studio-dev.genlayer.com/address/YOUR_ADDRESS
-
-### B. Point the app at that address
-
-```bash
-cd web
-# local
-echo 'NEXT_PUBLIC_DEALGUARD_ADDRESS=0xYOUR_STUDIO_NEXT_ADDRESS' > .env.local
-npm run dev
-
-# production (Vercel)
-# set NEXT_PUBLIC_DEALGUARD_ADDRESS in project env, redeploy
-```
-
-### C. Demo video (required)
-
-Record 1–3 min showing:
-1. Open `/console/`
-2. Connect MetaMask (Studio Next)
-3. Refresh → on-chain owner/stats
-4. credit → create_deal → fund
-5. Refresh → deal status funded
-Upload to YouTube → paste URL in Portal **Demo video** field.
-
-## Portal Resubmit text
+## Portal resubmit text
 
 ```text
-Connected DealGuard web app to live GenLayer reads/writes via /console (MetaMask + genlayer-js). Refresh shows list_deals/get_deal/get_stats from chain — not local JSON. App targets Studio Next chain 61997 (RPC studio-next.genlayer.com). Studio Next address: REPLACE_ADDRESS. Demo video: REPLACE_YOUTUBE_URL. Reproducible path: open /console → Connect → Refresh → credit → create_deal(demo-1) → fund → Refresh shows status funded.
+DealGuard is now deployed on GenLayer Studio Dev / Studio Next (chain 61997, GenVM v0.3):
+0x0e4619B776f849F0527B32DA86c0ED13c8841AB6
+Source verification: gen_getContractCode on studio-dev.genlayer.com returns code whose sha256 is
+d69a3444de6b99bb6a919c11003d69d6900681943f00b8d081cc037a52f996ad, identical to contracts/DealGuard.py in the repo
+(also pinned as contract_hash in CODE_SNAPSHOT.json).
+
+The web app is connected to this contract: https://valentinzubok.github.io/DealGuard/console/
+It reads get_owner / get_stats / list_deals / get_deal directly from chain (no local JSON) and writes via MetaMask
+with genlayer-js (studioDevnet chain, fee deposits): credit, create_deal, fund, submit_delivery, release, dispute, adjudicate.
+
+On-chain state already present: demo-1 completed (create_deal → fund → submit_delivery → release) and demo-2 settled_pay
+(dispute → adjudicate by LLM validators on the frozen listing/delivery snapshots). All tx hashes: STUDIO_DEV_DEPLOY.md.
+
+Reproducible path: open /console → state loads from chain → Connect MetaMask (switches to 61997) → Get test GEN →
+create_deal → fund → (provider account) submit_delivery → dispute → adjudicate → Refresh shows the new status and verdict.
+
+Demo video: REPLACE_WITH_VIDEO_URL
 ```
 
-## Evidence
+## Evidence links
 
-1. GitHub https://github.com/valentinzubok/DealGuard
-2. Website /console URL
-3. Studio Next explorer address (61997)
-4. Demo video YouTube
-5. contracts/DealGuard.py blob
+1. GitHub: https://github.com/valentinzubok/DealGuard
+2. App: https://valentinzubok.github.io/DealGuard/console/
+3. Contract: https://explorer-studio-dev.genlayer.com/address/0x0e4619B776f849F0527B32DA86c0ED13c8841AB6
+4. Deploy record: https://github.com/valentinzubok/DealGuard/blob/main/STUDIO_DEV_DEPLOY.md
+5. Demo video: REPLACE_WITH_VIDEO_URL

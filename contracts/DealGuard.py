@@ -1,5 +1,5 @@
-# { "Depends": "py-genlayer:9b8kjyda2ycxyq4ea6g4yfpnydxhd52gqba5rb8dw7krkh5mn9p0" }
-# v0.3.0 — Studio Next / studio-dev (chain 61997)
+# v0.3.0
+# { "Depends": "py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng" }
 
 import genlayer as gl
 import hashlib
@@ -8,6 +8,7 @@ import re
 
 # DealGuard — agentic commerce escrow with frozen web evidence + LLM settlement.
 # Copyright (c) 2026 Valentyn Zubok. MIT License.
+# Runtime: GenVM v0.3.0-rc7 — Studio Next / studio-dev (chain 61997).
 #
 # Lifecycle:
 #   credit → create_deal (freeze listings) → fund → submit_delivery (freeze)

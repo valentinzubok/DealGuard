@@ -4,7 +4,7 @@ import { type Address, parseJson, readContract, writeAndWait } from "./genlayer"
 function requireAddress(): Address {
   if (!CONTRACT_ADDRESS || !CONTRACT_ADDRESS.startsWith("0x")) {
     throw new Error(
-      "Set NEXT_PUBLIC_DEALGUARD_ADDRESS to your Studio Next (61997) deploy",
+      "Set NEXT_PUBLIC_DEALGUARD_ADDRESS to your Studio Dev (61997) deploy",
     );
   }
   return CONTRACT_ADDRESS as Address;
@@ -89,4 +89,21 @@ export async function submitDelivery(
     dealId,
     deliveryUrlsJson,
   ]);
+}
+
+export async function release(account: Address, provider: unknown, dealId: string) {
+  return writeAndWait(account, provider, requireAddress(), "release", [dealId]);
+}
+
+export async function dispute(
+  account: Address,
+  provider: unknown,
+  dealId: string,
+  claim: string,
+) {
+  return writeAndWait(account, provider, requireAddress(), "dispute", [dealId, claim]);
+}
+
+export async function adjudicate(account: Address, provider: unknown, dealId: string) {
+  return writeAndWait(account, provider, requireAddress(), "adjudicate", [dealId]);
 }

@@ -10,7 +10,8 @@
 
 <p align="center">
   <a href="https://valentinzubok.github.io/DealGuard/"><img src="https://img.shields.io/badge/Website-Live-0ea5a0?style=for-the-badge" alt="Website" /></a>
-  <a href="https://explorer-studio.genlayer.com/address/0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D"><img src="https://img.shields.io/badge/Studionet-Contract-111827?style=for-the-badge" alt="Contract" /></a>
+  <a href="https://explorer-studio-dev.genlayer.com/address/0x0e4619B776f849F0527B32DA86c0ED13c8841AB6"><img src="https://img.shields.io/badge/Studio%20Dev%2061997-Contract-111827?style=for-the-badge" alt="Contract" /></a>
+  <a href="https://valentinzubok.github.io/DealGuard/console/"><img src="https://img.shields.io/badge/App-Live%20console-ef4444?style=for-the-badge" alt="Console" /></a>
 </p>
 
 <p align="center">
@@ -23,8 +24,9 @@
 | | |
 |---|---|
 | **Website** | https://valentinzubok.github.io/DealGuard/ |
-| **Contract** | [`0xe8D6d1D1…B02D`](https://explorer-studio.genlayer.com/address/0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D) |
-| **Studio** | https://studio.genlayer.com/contracts |
+| **Contract (Studio Dev, chain 61997)** | [`0x0e4619B776f849F0527B32DA86c0ED13c8841AB6`](https://explorer-studio-dev.genlayer.com/address/0x0e4619B776f849F0527B32DA86c0ED13c8841AB6) · [deploy record](STUDIO_DEV_DEPLOY.md) |
+| **Live app** | https://valentinzubok.github.io/DealGuard/console/ — MetaMask reads/writes the contract |
+| **Studio** | https://studio-dev.genlayer.com/run-debug |
 | **Quickstart** | [Site guide](https://valentinzubok.github.io/DealGuard/quickstart/) · [`docs/STUDIO.md`](docs/STUDIO.md) |
 | **Evidence explorer** | https://valentinzubok.github.io/DealGuard/evidence-explorer/ |
 | **Changelog** | [`CHANGELOG.md`](CHANGELOG.md) · [site](https://valentinzubok.github.io/DealGuard/changelog/) |
@@ -112,12 +114,12 @@ NEXT_PUBLIC_BASE_PATH=/DealGuard NEXT_BASE_PATH=/DealGuard npm run build
 # static files in web/out/
 ```
 
-No `.env` is required for the static site. Studio / MetaMask connect against Studionet in the browser.
+No `.env` is required: the app defaults to the live Studio Dev contract `0x0e4619B776f849F0527B32DA86c0ED13c8841AB6` (override with `NEXT_PUBLIC_DEALGUARD_ADDRESS`). Open `/console/` and connect MetaMask — it switches to chain 61997.
 
 ### 3) Deploy / use the live demo on Studio
 
-1. Open [GenLayer Studio](https://studio.genlayer.com/contracts)
-2. Paste [`contracts/DealGuard.py`](contracts/DealGuard.py) **or** open the [already-deployed contract](https://explorer-studio.genlayer.com/address/0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D)
+1. Open [GenLayer Studio Dev](https://studio-dev.genlayer.com/run-debug) (chain 61997)
+2. Paste [`contracts/DealGuard.py`](contracts/DealGuard.py) **or** use the [already-deployed contract](https://explorer-studio-dev.genlayer.com/address/0x0e4619B776f849F0527B32DA86c0ED13c8841AB6) from the [live console](https://valentinzubok.github.io/DealGuard/console/)
 3. Follow [Quickstart on the site](https://valentinzubok.github.io/DealGuard/quickstart/) or [`examples/demo_flow.md`](examples/demo_flow.md)
 
 Demo listing URL:
@@ -147,16 +149,15 @@ Full tables: [Features](https://valentinzubok.github.io/DealGuard/features/) · 
 
 ---
 
-## Live Studionet deploy
+## Live Studio Dev deploy (chain 61997)
 
 | Item | Link |
 |------|------|
-| **Contract** | [`0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D`](https://explorer-studio.genlayer.com/address/0xe8D6d1D1f81790e17C5Bd3436C5277E8C401B02D) |
-| **Deploy tx** | [`0x09b84e3b…`](https://explorer-studio.genlayer.com/tx/0x09b84e3ba39a88b1fbb2d2cdd8df994877f3444864827d88023caae83a67b5c3) |
-| **pin_code_snapshot** | [`0x0d17d1ef…`](https://explorer-studio.genlayer.com/tx/0x0d17d1effc69a47718283014b3d0b941a174cb9db896db7aa239c3ac01d45c11) |
-| **create_deal(demo-1)** | [`0xdb2e5980…`](https://explorer-studio.genlayer.com/tx/0xdb2e59803482ea0ff10d11bbc128f5b6323c131808d88d7a4bc2063a0d9310e7) |
-| **store_evidence** | [`0x0cd0bd31…`](https://explorer-studio.genlayer.com/tx/0x0cd0bd31256e670deb6e4418cd8d94d96b83452d4d2551500eee6337cdf224fc) |
-| **Full record** | [`DEPLOY.md`](DEPLOY.md) |
+| **Contract** | [`0x0e4619B776f849F0527B32DA86c0ED13c8841AB6`](https://explorer-studio-dev.genlayer.com/address/0x0e4619B776f849F0527B32DA86c0ED13c8841AB6) |
+| **Source check** | on-chain code sha256 = `d69a3444…96ad` = `contracts/DealGuard.py` |
+| **Lifecycle txs** | deploy → credit → create_deal → fund → submit_delivery → release; dispute → adjudicate (LLM) — see [`STUDIO_DEV_DEPLOY.md`](STUDIO_DEV_DEPLOY.md) |
+| **App** | [`/console/`](https://valentinzubok.github.io/DealGuard/console/) |
+| **Legacy Studionet (61999)** | [`DEPLOY.md`](DEPLOY.md) |
 
 ---
 

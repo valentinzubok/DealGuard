@@ -9,9 +9,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { createClient } from "genlayer-js";
 import { CHAIN_ID, RPC_URL, EXPLORER_BASE } from "@/lib/config";
-import { studioNext, type Address } from "@/lib/genlayer";
+import type { Address } from "@/lib/genlayer";
 
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -50,7 +49,7 @@ async function ensureStudioNext(eth: EthereumProvider) {
         params: [
           {
             chainId: hexId,
-            chainName: "GenLayer Studio Next",
+            chainName: "GenLayer Studio Dev",
             nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
             rpcUrls: [RPC_URL],
             blockExplorerUrls: [EXPLORER_BASE],
@@ -72,19 +71,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const bind = useCallback(async (eth: EthereumProvider, acc: string) => {
     const typed = acc as Address;
     try {
+      // Switch/add 61997 directly; client.connect("studionet") would move the wallet to 61999.
       await ensureStudioNext(eth);
-      const client = createClient({ chain: studioNext, account: typed, provider: eth });
-      try {
-        await client.connect("studionet");
-      } catch {
-        // Custom Studio Next RPC — MetaMask already switched via wallet_*.
-      }
       setAddress(typed);
       setProvider(eth);
       setReady(true);
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Studio Next connect failed");
+      setError(e instanceof Error ? e.message : "Studio Dev connect failed");
       setReady(false);
     }
   }, []);
