@@ -32,6 +32,9 @@ jobs:
       - name: Build integrity pack artifact
         run: python3 scripts/generate_integrity_pack.py
 
+      - name: Install test dependencies
+        run: python3 -m pip install -r requirements-dev.txt
+
       - name: Unit tests (create_deal, fund, submit_delivery, dispute, …)
         run: python3 -m pytest -q
 
