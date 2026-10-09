@@ -6,7 +6,7 @@ import { withBase } from "@/lib/basePath";
 const STEPS = [
   { actor: "Client", action: "create_deal(terms, listing_urls)", note: "Freeze listing" },
   { actor: "Validators", action: "get_webpage + SHA-256", note: "strict_eq consensus" },
-  { actor: "Client", action: "fund(deal_id)", note: "Lock escrow units" },
+  { actor: "Client", action: "fund(deal_id)", note: "Payable: the price in GEN enters the contract" },
   { actor: "Provider", action: "submit_delivery(urls)", note: "Freeze delivery" },
   { actor: "Client", action: "dispute / release", note: "Claim or happy path" },
   { actor: "Validators", action: "adjudicate → pay_provider", note: "LLM on frozen evidence" },

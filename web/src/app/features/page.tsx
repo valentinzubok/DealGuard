@@ -33,9 +33,9 @@ const ROWS = [
   {
     method: "fund",
     kind: "write",
-    why: "Moves client bookkeeping units into escrow for this deal.",
+    why: "Payable. The client sends the price in native GEN and it stays in the contract until the deal ends.",
     args: "deal_id",
-    out: "status: funded; escrowed += amount",
+    out: "status: funded; contract balance += amount",
     example: `fund("demo-1")`,
   },
   {

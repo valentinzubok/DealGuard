@@ -51,8 +51,8 @@ def cmd_studio_calls(args: argparse.Namespace) -> None:
      "{snap_data['contract_hash']}",
      "{snap_data['timestamp']}"
    )
-3) credit(your_0x, "1000")
-4) create_deal / fund / submit_delivery (see examples/demo_flow.md)
+3) fund the client wallet with test GEN (fund() is payable; there is no credit())
+4) create_deal / fund (value = amount in wei) / submit_delivery (see examples/demo_flow.md)
 5) store_evidence("{args.deal_id}", {json.dumps(evidence)})
 6) get_code_snapshot() / get_evidence("{args.deal_id}") / get_criteria_template()
 """

@@ -15,7 +15,14 @@ export type DealRow = {
   client: string;
   provider: string;
   terms: string;
-  amount: number;
+  /** Price in wei of native GEN. */
+  amount: string;
+  /** Wei this deal holds in the contract right now. */
+  escrow: string;
+  delivery_window: number;
+  delivery_due_at: number;
+  paid_to: string;
+  paid_amount: string;
   status: string;
   listing_items?: unknown[];
   delivery_items?: unknown[];
@@ -43,18 +50,33 @@ export async function getStats(): Promise<unknown> {
   return parseJson(raw, null);
 }
 
-export async function getBalance(user: string) {
-  const raw = await readContract<string>(requireAddress(), "get_balance", [user]);
-  return parseJson(raw, null);
+/** Wei the contract owes this address outside any deal (an overpaid or refused funding). */
+export async function getCredit(user: string): Promise<string> {
+  return (await readContract<string>(requireAddress(), "get_credit", [user])) || "0";
 }
 
-export async function credit(
-  account: Address,
-  provider: unknown,
-  user: string,
-  amount: string,
-) {
-  return writeAndWait(account, provider, requireAddress(), "credit", [user, amount]);
+/** Wei the contract actually holds: every funded deal plus every credit. */
+export async function getEscrowBalance(): Promise<string> {
+  return (await readContract<string>(requireAddress(), "get_escrow_balance", [])) || "0";
+}
+
+export type Schedule = {
+  deal_id: string;
+  now: number;
+  status: string;
+  delivery_due_at: number;
+  can_fund: boolean;
+  can_deliver: boolean;
+  can_reclaim: boolean;
+  can_release: boolean;
+  can_dispute: boolean;
+  can_adjudicate: boolean;
+};
+
+export async function getSchedule(id: string): Promise<Schedule | null> {
+  const raw = await readContract<string>(requireAddress(), "get_schedule", [id]);
+  const parsed = parseJson<Schedule & { error?: string }>(raw, {} as Schedule);
+  return parsed.deal_id ? parsed : null;
 }
 
 export async function createDeal(
@@ -64,19 +86,35 @@ export async function createDeal(
   providerAddr: string,
   terms: string,
   listingUrlsJson: string,
-  amount: string,
+  amountWei: string,
+  deliveryWindow: string,
 ) {
   return writeAndWait(account, provider, requireAddress(), "create_deal", [
     dealId,
     providerAddr,
     terms,
     listingUrlsJson,
-    amount,
+    amountWei,
+    deliveryWindow,
   ]);
 }
 
-export async function fund(account: Address, provider: unknown, dealId: string) {
-  return writeAndWait(account, provider, requireAddress(), "fund", [dealId]);
+/** The deal amount travels as the transaction's value and is escrowed by the contract. */
+export async function fund(
+  account: Address,
+  provider: unknown,
+  dealId: string,
+  amountWei: string,
+) {
+  return writeAndWait(account, provider, requireAddress(), "fund", [dealId], BigInt(amountWei));
+}
+
+export async function reclaim(account: Address, provider: unknown, dealId: string) {
+  return writeAndWait(account, provider, requireAddress(), "reclaim", [dealId]);
+}
+
+export async function withdrawCredit(account: Address, provider: unknown) {
+  return writeAndWait(account, provider, requireAddress(), "withdraw_credit", []);
 }
 
 export async function submitDelivery(

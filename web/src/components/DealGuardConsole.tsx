@@ -15,22 +15,44 @@ import {
 import {
   adjudicate,
   createDeal,
-  credit,
   dispute,
   fund,
-  getBalance,
+  getCredit,
   getDeal,
+  getEscrowBalance,
   getOwner,
   getStats,
   listDeals,
+  reclaim,
   release,
   submitDelivery,
+  withdrawCredit,
   type DealRow,
 } from "@/lib/contracts";
 import { fundWithTestGen, getNativeBalance } from "@/lib/genlayer";
 import { useWallet } from "./WalletProvider";
 
 type FrozenItem = { url?: string; content_hash?: string; preview?: string; status?: string };
+
+/** Wei as GEN, trimmed: 1500000000000000000 -> "1.5". */
+function fmtGen(wei: string | number | undefined) {
+  let v: bigint;
+  try {
+    v = BigInt(wei || 0);
+  } catch {
+    return "0";
+  }
+  const whole = v / BigInt(10 ** 18);
+  const frac = (v % BigInt(10 ** 18)).toString().padStart(18, "0").replace(/0+$/, "");
+  return frac ? `${whole}.${frac.slice(0, 6)}` : `${whole}`;
+}
+
+/** GEN typed by a person as wei, or "" when it is not a number. */
+function toWei(text: string) {
+  const m = /^(\d+)(?:\.(\d{1,18}))?$/.exec(text.trim());
+  if (!m) return "";
+  return (BigInt(m[1]) * BigInt(10 ** 18) + BigInt((m[2] || "").padEnd(18, "0") || "0")).toString();
+}
 
 function short(addr: string) {
   return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "—";
@@ -56,34 +78,40 @@ export function DealGuardConsole() {
   const [rows, setRows] = useState<DealRow[]>([]);
   const [owner, setOwner] = useState("");
   const [stats, setStats] = useState("");
-  const [balance, setBalance] = useState("");
+  const [credit, setCredit] = useState("0");
+  const [held, setHeld] = useState("0");
   const [gen, setGen] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [tx, setTx] = useState("");
 
-  const [dealId, setDealId] = useState("demo-3");
+  const [dealId, setDealId] = useState("my-deal-1");
   const [providerAddr, setProviderAddr] = useState<string>(DEFAULT_PROVIDER);
-  const [terms, setTerms] = useState("Deliver a page that says Hello world");
-  const [amount, setAmount] = useState("100");
+  const [terms, setTerms] = useState("Deliver a page that contains the word Hello and the delivered report");
+  const [amount, setAmount] = useState("1");
+  const [deliveryWindow, setDeliveryWindow] = useState("600");
   const [listingUrl, setListingUrl] = useState(DEMO_URL);
   const [deliveryUrl, setDeliveryUrl] = useState(DEMO_URL);
   const [claim, setClaim] = useState("Delivered page does not match the listing");
-  const [creditUser, setCreditUser] = useState("");
-  const [creditAmount, setCreditAmount] = useState("1000");
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [ids, o, s] = await Promise.all([listDeals(), getOwner(), getStats()]);
+      const [ids, o, s, h] = await Promise.all([
+        listDeals(),
+        getOwner(),
+        getStats(),
+        getEscrowBalance(),
+      ]);
       setOwner(o);
+      setHeld(h);
       setStats(JSON.stringify(s, null, 2));
       const loaded = await Promise.all(ids.map((id) => getDeal(id)));
       setRows((loaded.filter(Boolean) as DealRow[]).reverse());
       if (address) {
-        const [bal, g] = await Promise.all([getBalance(address), getNativeBalance(address)]);
-        setBalance(JSON.stringify(bal));
+        const [cr, g] = await Promise.all([getCredit(address), getNativeBalance(address)]);
+        setCredit(cr);
         setGen(g);
       }
       setMsg("");
@@ -97,10 +125,6 @@ export function DealGuardConsole() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  useEffect(() => {
-    if (address && !creditUser) setCreditUser(address);
-  }, [address, creditUser]);
 
   const run = async (label: string, fn: () => Promise<string | void>) => {
     if (!address || !provider) {
@@ -122,6 +146,8 @@ export function DealGuardConsole() {
   };
 
   const isOwner = Boolean(address && owner && address.toLowerCase() === owner.toLowerCase());
+  const amountWei = toWei(amount);
+  const selected = rows.find((r) => r.deal_id === dealId);
   const acct = address as `0x${string}`;
   const listingJson = JSON.stringify([listingUrl]);
   const deliveryJson = JSON.stringify([deliveryUrl]);
@@ -187,12 +213,29 @@ export function DealGuardConsole() {
 
       <section className="card">
         <h2>On-chain state</h2>
-        <p className="muted">owner {owner || "—"}</p>
+        <p className="muted">
+          The contract holds <strong>{fmtGen(held)} GEN</strong> right now: every funded deal plus
+          every credit. owner {owner || "—"} — the owner can pin the code snapshot and nothing
+          else; it cannot release, dispute, reclaim or mint.
+        </p>
         <pre>{stats || "—"}</pre>
+        {address && credit !== "0" && (
+          <p className="muted">
+            The contract holds <strong>{fmtGen(credit)} GEN</strong> for you that it could not put
+            into a deal (an overpaid or refused funding).{" "}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={disabled}
+              onClick={() => void run("withdraw_credit", () => withdrawCredit(acct, provider))}
+            >
+              take it back
+            </button>
+          </p>
+        )}
         {address && (
           <p className="muted">
-            your escrow balance <code>{balance || "—"}</code> · test GEN for fees{" "}
-            <code>{gen || "—"}</code>{" "}
+            your wallet <code>{gen || "—"}</code> GEN{" "}
             <button
               type="button"
               className="btn btn-ghost"
@@ -214,8 +257,15 @@ export function DealGuardConsole() {
               >
                 {r.deal_id}
               </button>{" "}
-              <strong>{r.status}</strong> · {r.amount} · client {short(r.client)} · provider{" "}
+              <strong>{r.status}</strong> · price {fmtGen(r.amount)} GEN · in escrow{" "}
+              <strong>{fmtGen(r.escrow)} GEN</strong> · client {short(r.client)} · provider{" "}
               {short(r.provider)}
+              {r.paid_to && ` · paid ${fmtGen(r.paid_amount)} GEN to ${short(r.paid_to)}`}
+              {r.status === "funded" &&
+                ` · delivery due ${new Date(r.delivery_due_at * 1000)
+                  .toISOString()
+                  .replace("T", " ")
+                  .slice(0, 16)} UTC`}
               {r.status.startsWith("settled") &&
                 ` · verdict pay_provider=${String(r.pay_provider)}`}
               <Frozen label="listing frozen" items={r.listing_items} />
@@ -223,28 +273,6 @@ export function DealGuardConsole() {
             </li>
           ))}
         </ul>
-      </section>
-
-      <section className="card">
-        <h2>Owner: credit escrow units</h2>
-        <label>
-          user
-          <input value={creditUser} onChange={(e) => setCreditUser(e.target.value)} />
-        </label>
-        <label>
-          amount
-          <input value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} />
-        </label>
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={disabled || !isOwner}
-          onClick={() =>
-            void run("credit", () => credit(acct, provider, creditUser.trim(), creditAmount))
-          }
-        >
-          credit(user, amount)
-        </button>
       </section>
 
       <section className="card">
@@ -266,17 +294,35 @@ export function DealGuardConsole() {
           <input value={listingUrl} onChange={(e) => setListingUrl(e.target.value)} />
         </label>
         <label>
-          amount
+          price (GEN)
           <input value={amount} onChange={(e) => setAmount(e.target.value)} />
         </label>
+        <label>
+          delivery window (seconds from funding)
+          <input value={deliveryWindow} onChange={(e) => setDeliveryWindow(e.target.value)} />
+        </label>
+        <p className="muted">
+          fund sends the price as real GEN with the transaction and the contract holds it. It
+          leaves only to the provider (you release, or validators rule for them) or back to you
+          (validators rule for you, or no delivery arrives before the window ends and you reclaim).
+        </p>
         <div className="row">
           <button
             type="button"
             className="btn btn-primary"
-            disabled={disabled}
+            disabled={disabled || amountWei === ""}
             onClick={() =>
               void run("create_deal", () =>
-                createDeal(acct, provider, dealId, providerAddr, terms, listingJson, amount),
+                createDeal(
+                  acct,
+                  provider,
+                  dealId,
+                  providerAddr,
+                  terms,
+                  listingJson,
+                  amountWei,
+                  deliveryWindow,
+                ),
               )
             }
           >
@@ -285,10 +331,20 @@ export function DealGuardConsole() {
           <button
             type="button"
             className="btn btn-ghost"
-            disabled={disabled}
-            onClick={() => void run("fund", () => fund(acct, provider, dealId))}
+            disabled={disabled || !selected || selected.status !== "open"}
+            onClick={() =>
+              void run("fund", () => fund(acct, provider, dealId, selected?.amount || "0"))
+            }
           >
-            fund
+            fund {selected ? `· send ${fmtGen(selected.amount)} GEN` : ""}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={disabled || !selected || selected.status !== "funded"}
+            onClick={() => void run("reclaim", () => reclaim(acct, provider, dealId))}
+          >
+            reclaim (no delivery by the deadline)
           </button>
         </div>
       </section>
@@ -343,7 +399,7 @@ export function DealGuardConsole() {
             disabled={disabled}
             onClick={() => void run("adjudicate", () => adjudicate(acct, provider, dealId))}
           >
-            adjudicate (LLM on frozen evidence)
+            adjudicate (consensus on frozen evidence, escrow follows the verdict)
           </button>
         </div>
       </section>

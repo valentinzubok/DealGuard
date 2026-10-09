@@ -51,13 +51,10 @@ python3 scripts/cli.py studio-calls
 
 ---
 
-## 3. Деньги для демо (owner)
+## 3. Деньги для демо
 
-```text
-credit(<client_0x>, "1000")
-```
-
-`client_0x` = кошелёк, который будет открывать сделку.
+В v2 нет `credit()`: эскроу — это настоящие GEN. Клиенту нужен тестовый GEN на кошельке
+(кнопка **Get test GEN** в консоли или `sim_fundAccount`). Сумма сделки задаётся в wei.
 
 ---
 
@@ -71,9 +68,10 @@ create_deal(
   "<provider_0x>",
   "Provider must deliver a page that contains the word Hello",
   "[\"https://test-server.genlayer.com/static/genvm/hello.html\"]",
-  "100"
+  "1000000000000000000",
+  "3600"
 )
-fund("demo-1")
+fund("demo-1")   # value = 1 GEN
 ```
 
 Проверка: `get_deal("demo-1")` → `status: funded`, в `listing_items` есть `content_hash` (64 hex).

@@ -1,4 +1,15 @@
-"""Pytest bootstrap: mock genlayer so Studio contract files can be imported."""
+"""Pytest bootstrap: a fake GenVM the tests steer.
+
+Knobs:
+  gl.clock              the transaction datetime, in unix seconds (see advance())
+  gl.page               text every page returns (str, or an Exception to raise)
+  gl.pages              optional per-URL overrides: {url: str | Exception}
+  gl.llm_reply          raw model output (str/dict, or an Exception to raise)
+  gl.comparative_fails  when True, eq_principle.prompt_comparative raises
+  gl.prompts            every prompt sent, for assertions about quoting
+  gl.balance            GEN (wei) the contract holds; pay() adds to it, payouts subtract
+  gl.transfers          every external wallet transfer the contract emitted: (address, wei)
+"""
 
 from __future__ import annotations
 
@@ -9,62 +20,165 @@ from pathlib import Path
 
 def _install_fake_genlayer() -> None:
     existing = sys.modules.get("genlayer")
-    if existing is not None and getattr(existing, "_dealguard_fake", False):
+    if existing is not None and getattr(existing, "_fake_genvm", False):
         return
 
     gl = types.ModuleType("genlayer")
-    gl._dealguard_fake = True
+    gl._fake_genvm = True
+
+    class _Write:
+        """`@gl.public.write` and `@gl.public.write.payable`."""
+
+        def __call__(self, fn):
+            fn._payable = False
+            return fn
+
+        @staticmethod
+        def payable(fn):
+            fn._payable = True
+            return fn
 
     class _Public:
-        @staticmethod
-        def write(fn):
-            return fn
+        write = _Write()
 
         @staticmethod
         def view(fn):
             return fn
 
+    class _Contract:
+        """Base class: a contract can read its own balance."""
+
+        @property
+        def balance(self):
+            return gl.balance
+
+    class _WalletProxy:
+        def __init__(self, address):
+            self.address = str(address)
+
+        def emit_transfer(self, value=0, **kwargs):
+            """An external native transfer. It cannot send what the contract does not hold."""
+            if kwargs:
+                raise TypeError("external transfers take no `on` argument")
+            amount = int(value)
+            if amount <= 0 or amount > gl.balance:
+                raise Exception("transfer exceeds the contract balance")
+            gl.balance -= amount
+            gl.transfers.append((self.address, amount))
+
+    def _evm_interface(cls):
+        return _WalletProxy
+
     class _EqPrinciple:
         @staticmethod
-        def prompt_comparative(leader_fn, principle=""):
+        def prompt_comparative(leader_fn, principle="", /):
+            """`principle` is positional-only in GenVM v0.3; the fake enforces that so a
+            keyword call fails in tests exactly as it does on chain."""
+            if getattr(gl, "comparative_fails", False):
+                raise Exception("comparative consensus unavailable")
             return leader_fn()
 
         @staticmethod
         def strict_eq(leader_fn):
             return leader_fn()
 
-    def _strict_eq(leader_fn):
-        return leader_fn()
+    def _render(url, mode="text"):
+        page = gl.pages.get(url, gl.page)
+        if isinstance(page, Exception):
+            raise page
+        return page
 
-    gl.Contract = object
-    # GenVM v0.3 API (Studio Dev 61997): gl.contract.Contract, gl.nondet.web.render
-    gl.contract = types.SimpleNamespace(Contract=object)
+    def _exec_prompt(prompt, response_format=None):
+        gl.prompts.append(prompt)
+        reply = gl.llm_reply
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    gl.contract = types.SimpleNamespace(Contract=_Contract)
     gl.public = _Public()
+    gl.evm = types.SimpleNamespace(contract_interface=_evm_interface)
     gl.message = types.SimpleNamespace(
-        sender_address="0x1111111111111111111111111111111111111111"
+        sender_address="0x1111111111111111111111111111111111111111", value=0
     )
+    gl_types = types.ModuleType("genlayer.types")
+    gl_types.Address = str
+    gl.types = gl_types
+    sys.modules["genlayer.types"] = gl_types
     gl.eq_principle = _EqPrinciple()
-    gl.eq_principle_strict_eq = _strict_eq
-    gl.get_webpage = lambda url, mode="text": "Hello world! GenLayer fixture page"
     gl.nondet = types.SimpleNamespace(
-        exec_prompt=lambda prompt, response_format="json": '{"pay_provider": true}',
-        web=types.SimpleNamespace(render=gl.get_webpage),
+        web=types.SimpleNamespace(render=_render),
+        exec_prompt=_exec_prompt,
     )
-    gl.exec_prompt = lambda prompt: '{"pay_provider": true}'
-    gl.gl = gl
+
+    gl.clock = 1_767_225_600  # 2026-01-01T00:00:00Z — tests move it with advance()
+    gl.page = "Hello world! GenLayer fixture page"
+    gl.pages = {}
+    gl.llm_reply = '{"pay_provider": true}'
+    gl.comparative_fails = False
+    gl.prompts = []
+    gl.balance = 0
+    gl.transfers = []
     sys.modules["genlayer"] = gl
 
 
 def load_contract(repo_root: Path, filename: str = "DealGuard.py"):
+    """Load the contract, with the clock wired to gl.clock.
+
+    On chain, `datetime.now()` returns the transaction datetime: deterministic, identical
+    for every validator. The stub below reproduces that so every time rule can be
+    tested without sleeping, and so a test cannot accidentally depend on wall-clock time.
+    """
     _install_fake_genlayer()
+    gl = sys.modules["genlayer"]
     path = repo_root / "contracts" / filename
-    text = path.read_text(encoding="utf-8")
-    text = text.replace("from genlayer import *", "# genlayer mocked in tests")
     mod_name = f"contract_{filename.replace('.', '_')}"
     module = types.ModuleType(mod_name)
-    gl = sys.modules["genlayer"]
     module.__dict__["gl"] = gl
-    code = compile(text, str(path), "exec")
-    exec(code, module.__dict__)
+    exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), module.__dict__)
+
+    real_datetime = module.__dict__["datetime"]
+
+    class _TxDatetime(real_datetime):  # type: ignore[misc, valid-type]
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime.fromtimestamp(gl.clock, tz)
+
+    module.__dict__["datetime"] = _TxDatetime
     sys.modules[mod_name] = module
     return module
+
+
+def advance(gl, seconds: int) -> None:
+    """Move the transaction clock forward, e.g. past an interval or a deadline."""
+    gl.clock += int(seconds)
+
+
+def reset(gl) -> None:
+    gl.clock = 1_767_225_600  # 2026-01-01T00:00:00Z — tests move it with advance()
+    gl.page = "Hello world! GenLayer fixture page"
+    gl.pages = {}
+    gl.llm_reply = '{"pay_provider": true}'
+    gl.comparative_fails = False
+    gl.prompts = []
+    gl.balance = 0
+    gl.transfers = []
+    gl.message.value = 0
+    gl.message.sender_address = "0x1111111111111111111111111111111111111111"
+
+
+def pay(gl, method, value: int, *args):
+    """Call a contract method with `value` wei attached, the way the network does it.
+
+    The value reaches the contract balance whether or not the call succeeds: on the real
+    network a reverted call does not return what was attached. A non-payable method
+    refuses value outright.
+    """
+    if value and not getattr(method, "_payable", False):
+        raise Exception("method is not payable")
+    gl.message.value = int(value)
+    gl.balance += int(value)
+    try:
+        return method(*args)
+    finally:
+        gl.message.value = 0

@@ -1,240 +1,233 @@
+"""Deal lifecycle: create, fund with real value, deliver, release, dispute, adjudicate."""
+
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
-from conftest import load_contract
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from conftest import advance, load_contract, pay, reset  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 mod = load_contract(ROOT, "DealGuard.py")
+gl = sys.modules["genlayer"]
 
 OWNER = "0x1111111111111111111111111111111111111111"
 CLIENT = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 PROVIDER = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 OTHER = "0xcccccccccccccccccccccccccccccccccccccccc"
 URLS = '["https://test-server.genlayer.com/static/genvm/hello.html"]'
+DELIVERY = '["https://provider.example/delivery"]'
 TERMS = "Provider must deliver a page that contains the word Hello"
+GEN = 10**18
+DAY = 86400
+D = "demo-1"
+
+
+@pytest.fixture(autouse=True)
+def _fresh():
+    reset(gl)
+    yield
 
 
 def _c():
+    gl.message.sender_address = OWNER
     return mod.DealGuard(OWNER)
+
+
+def _created(amount=GEN, window=str(DAY)):
+    c = _c()
+    gl.message.sender_address = CLIENT
+    c.create_deal(D, PROVIDER, TERMS, URLS, str(amount), window)
+    return c
+
+
+def _funded(amount=GEN, window=str(DAY)):
+    c = _created(amount, window)
+    gl.message.sender_address = CLIENT
+    pay(gl, c.fund, amount, D)
+    return c
+
+
+def _delivered(amount=GEN):
+    c = _funded(amount)
+    gl.message.sender_address = PROVIDER
+    c.submit_delivery(D, DELIVERY)
+    return c
+
+
+def _deal(c):
+    return json.loads(c.get_deal(D))
 
 
 def _sha_commit(commit: str) -> str:
     return hashlib.sha256(commit.encode()).hexdigest()
 
 
-def test_create_deal_freezes_listing():
-    import genlayer
+def test_create_deal_freezes_listing_and_commits_amount_and_window():
+    c = _created()
+    deal = _deal(c)
+    assert deal["status"] == "open" and deal["client"] == CLIENT and deal["provider"] == PROVIDER
+    assert deal["amount"] == str(GEN) and deal["delivery_window"] == DAY
+    assert deal["escrow"] == "0"
+    item = deal["listing_items"][0]
+    assert item["status"] == "ok" and len(item["content_hash"]) == 64
+    assert item["excerpts"][0]["text"] == "Hello world! GenLayer fixture page"
+    assert D in json.loads(c.list_deals())
 
+
+def test_create_deal_validation():
     c = _c()
-    genlayer.message.sender_address = CLIENT
-    c.create_deal("demo-1", PROVIDER, TERMS, URLS, "100")
-    deal = json.loads(c.get_deal("demo-1"))
-    assert deal["status"] == "open"
-    assert deal["client"] == CLIENT
-    assert deal["provider"] == PROVIDER
-    assert deal["amount"] == 100
-    assert deal["listing_items"][0]["status"] == "ok"
-    assert len(deal["listing_items"][0]["content_hash"]) == 64
-    assert "demo-1" in json.loads(c.list_deals())
-
-
-def test_create_deal_rejects_self_provider():
-    import genlayer
-
-    c = _c()
-    genlayer.message.sender_address = CLIENT
+    gl.message.sender_address = CLIENT
     with pytest.raises(Exception, match="provider cannot be the client"):
         c.create_deal("x", CLIENT, TERMS, URLS, "10")
+    with pytest.raises(Exception, match="provider cannot be the client"):
+        c.create_deal("x", CLIENT.upper().replace("0X", "0x"), TERMS, URLS, "10")
+    with pytest.raises(Exception, match="amount must be positive"):
+        c.create_deal("x", PROVIDER, TERMS, URLS, "0")
+    with pytest.raises(Exception, match="amount exceeds max"):
+        c.create_deal("x", PROVIDER, TERMS, URLS, str(10**24 + 1))
+    with pytest.raises(Exception, match="delivery_window must be between"):
+        c.create_deal("x", PROVIDER, TERMS, URLS, "10", "5")
+    with pytest.raises(Exception, match="https://"):
+        c.create_deal("x", PROVIDER, TERMS, '["http://insecure.example"]', "10")
+    c.create_deal(D, PROVIDER, TERMS, URLS, "10")
+    with pytest.raises(Exception, match="already exists"):
+        c.create_deal(D, PROVIDER, TERMS, URLS, "10")
 
 
-def test_fund_locks_escrow():
-    import genlayer
-
-    c = _c()
-    genlayer.message.sender_address = OWNER
-    c.credit(CLIENT, "500")
-    genlayer.message.sender_address = CLIENT
-    c.create_deal("demo-fund", PROVIDER, TERMS, URLS, "120")
-    c.fund("demo-fund")
-    deal = json.loads(c.get_deal("demo-fund"))
-    assert deal["status"] == "funded"
-    bal = json.loads(c.get_balance(CLIENT))
-    assert bal["available"] == 380
-    assert bal["escrowed"] == 120
+def test_fund_puts_the_deal_amount_in_the_contract_balance():
+    c = _created()
+    gl.message.sender_address = CLIENT
+    out = json.loads(pay(gl, c.fund, GEN, D))
+    assert out == {"funded": True, "escrowed": str(GEN), "credited": "0"}
+    deal = _deal(c)
+    assert deal["status"] == "funded" and deal["escrow"] == str(GEN)
+    assert deal["delivery_due_at"] == deal["funded_at"] + DAY
+    assert gl.balance == GEN and c.get_escrow_balance() == str(GEN)
+    assert json.loads(c.get_stats())["escrowed"] == str(GEN)
 
 
-def test_fund_requires_client_and_balance():
-    import genlayer
-
-    c = _c()
-    genlayer.message.sender_address = CLIENT
-    c.create_deal("demo-nf", PROVIDER, TERMS, URLS, "50")
-    with pytest.raises(Exception, match="insufficient balance"):
-        c.fund("demo-nf")
-    genlayer.message.sender_address = OWNER
-    c.credit(CLIENT, "50")
-    genlayer.message.sender_address = PROVIDER
-    with pytest.raises(Exception, match="only client"):
-        c.fund("demo-nf")
-
-
-def test_submit_delivery_freezes_urls():
-    import genlayer
-
-    c = _c()
-    genlayer.message.sender_address = OWNER
-    c.credit(CLIENT, "200")
-    genlayer.message.sender_address = CLIENT
-    c.create_deal("demo-del", PROVIDER, TERMS, URLS, "80")
-    c.fund("demo-del")
-    genlayer.message.sender_address = PROVIDER
-    c.submit_delivery("demo-del", URLS)
-    deal = json.loads(c.get_deal("demo-del"))
-    assert deal["status"] == "delivered"
-    assert deal["delivery_items"][0]["status"] == "ok"
-    assert len(deal["delivery_items"][0]["content_hash"]) == 64
-
-
-def test_submit_delivery_only_provider():
-    import genlayer
-
-    c = _c()
-    genlayer.message.sender_address = OWNER
-    c.credit(CLIENT, "100")
-    genlayer.message.sender_address = CLIENT
-    c.create_deal("demo-del2", PROVIDER, TERMS, URLS, "40")
-    c.fund("demo-del2")
+def test_submit_delivery_freezes_urls_and_is_provider_only():
+    c = _funded()
+    gl.message.sender_address = CLIENT
     with pytest.raises(Exception, match="only provider"):
-        c.submit_delivery("demo-del2", URLS)
+        c.submit_delivery(D, DELIVERY)
+    gl.message.sender_address = PROVIDER
+    c.submit_delivery(D, DELIVERY)
+    deal = _deal(c)
+    assert deal["status"] == "delivered" and deal["delivery_items"][0]["status"] == "ok"
+    assert deal["delivered_at"] > 0
 
 
-def test_dispute_sets_claim():
-    import genlayer
-
-    c = _c()
-    genlayer.message.sender_address = OWNER
-    c.credit(CLIENT, "100")
-    genlayer.message.sender_address = CLIENT
-    c.create_deal("demo-dis", PROVIDER, TERMS, URLS, "30")
-    c.fund("demo-dis")
-    genlayer.message.sender_address = PROVIDER
-    c.submit_delivery("demo-dis", URLS)
-    genlayer.message.sender_address = CLIENT
-    c.dispute("demo-dis", "Delivery does not match listing terms")
-    deal = json.loads(c.get_deal("demo-dis"))
-    assert deal["status"] == "disputed"
-    assert "does not match" in deal["claim"]
+def test_release_pays_the_provider_from_escrow():
+    c = _delivered()
+    gl.message.sender_address = CLIENT
+    assert c.release(D) == str(GEN)
+    deal = _deal(c)
+    assert deal["status"] == "completed" and deal["outcome"] == "release"
+    assert deal["escrow"] == "0" and deal["paid_to"] == PROVIDER
+    assert deal["paid_amount"] == str(GEN)
+    assert gl.transfers == [(PROVIDER, GEN)] and gl.balance == 0
+    assert json.loads(c.get_reputation(PROVIDER))["wins"] == 1
 
 
-def test_dispute_only_after_delivery():
-    import genlayer
+def test_dispute_then_adjudicate_pays_the_provider_when_validators_agree():
+    c = _delivered()
+    gl.message.sender_address = CLIENT
+    c.dispute(D, "The page does not contain what was promised")
+    assert _deal(c)["status"] == "disputed"
+    gl.llm_reply = '{"pay_provider": true}'
+    gl.message.sender_address = OTHER
+    out = json.loads(c.adjudicate(D))
+    assert out == {"pay_provider": True, "amount": str(GEN), "to": PROVIDER}
+    deal = _deal(c)
+    assert deal["status"] == "settled_pay" and deal["outcome"] == "adjudicate_pay"
+    assert gl.transfers == [(PROVIDER, GEN)] and gl.balance == 0
+    assert json.loads(c.get_reputation(CLIENT))["disputed"] == 1
 
-    c = _c()
-    genlayer.message.sender_address = OWNER
-    c.credit(CLIENT, "100")
-    genlayer.message.sender_address = CLIENT
-    c.create_deal("demo-early", PROVIDER, TERMS, URLS, "25")
-    c.fund("demo-early")
+
+def test_adjudicate_refunds_the_client_when_validators_say_no():
+    c = _delivered()
+    gl.message.sender_address = PROVIDER
+    c.dispute(D, "The client refuses to release")
+    gl.llm_reply = '{"pay_provider": false}'
+    out = json.loads(c.adjudicate(D))
+    assert out == {"pay_provider": False, "amount": str(GEN), "to": CLIENT}
+    assert _deal(c)["status"] == "settled_refund"
+    assert gl.transfers == [(CLIENT, GEN)] and gl.balance == 0
+
+
+def test_dispute_only_after_delivery_and_only_by_a_party():
+    c = _funded()
+    gl.message.sender_address = CLIENT
     with pytest.raises(Exception, match="must be delivered"):
-        c.dispute("demo-early", "too early")
-
-
-def test_release_happy_path():
-    import genlayer
-
-    c = _c()
-    genlayer.message.sender_address = OWNER
-    c.credit(CLIENT, "100")
-    genlayer.message.sender_address = CLIENT
-    c.create_deal("demo-rel", PROVIDER, TERMS, URLS, "60")
-    c.fund("demo-rel")
-    genlayer.message.sender_address = PROVIDER
-    c.submit_delivery("demo-rel", URLS)
-    genlayer.message.sender_address = CLIENT
-    c.release("demo-rel")
-    deal = json.loads(c.get_deal("demo-rel"))
-    assert deal["status"] == "completed"
-    assert json.loads(c.get_balance(PROVIDER))["available"] == 60
-    rep = json.loads(c.get_reputation(PROVIDER))
-    assert rep["wins"] == 1
-
-
-def test_adjudicate_pays_provider():
-    import genlayer
-
-    c = _c()
-    genlayer.message.sender_address = OWNER
-    c.credit(CLIENT, "100")
-    genlayer.message.sender_address = CLIENT
-    c.create_deal("demo-adj", PROVIDER, TERMS, URLS, "70")
-    c.fund("demo-adj")
-    genlayer.message.sender_address = PROVIDER
-    c.submit_delivery("demo-adj", URLS)
-    genlayer.message.sender_address = CLIENT
-    c.dispute("demo-adj", "please check")
-    c.adjudicate("demo-adj")
-    deal = json.loads(c.get_deal("demo-adj"))
-    assert deal["status"] == "settled_pay"
-    assert deal["pay_provider"] is True
+        c.dispute(D, "too early")
+    c = _delivered()
+    gl.message.sender_address = OTHER
+    with pytest.raises(Exception, match="only parties"):
+        c.dispute(D, "not my deal")
 
 
 def test_pin_code_snapshot_only_owner():
-    import genlayer
-
     c = _c()
     commit = "a" * 40
-    eh = _sha_commit(commit)
-    ch = "b" * 64
-    genlayer.message.sender_address = OTHER
+    gl.message.sender_address = OTHER
     with pytest.raises(Exception, match="only owner"):
-        c.pin_code_snapshot(commit, eh, ch, "2026-01-01T00:00:00Z")
-    genlayer.message.sender_address = OWNER
-    c.pin_code_snapshot(commit, eh, ch, "2026-01-01T00:00:00Z")
+        c.pin_code_snapshot(commit, _sha_commit(commit), "b" * 64, "2026-10-09T00:00:00Z")
+    gl.message.sender_address = OWNER
+    with pytest.raises(Exception, match="must equal sha256"):
+        c.pin_code_snapshot(commit, "c" * 64, "b" * 64, "2026-10-09T00:00:00Z")
+    c.pin_code_snapshot(commit, _sha_commit(commit), "b" * 64, "2026-10-09T00:00:00Z")
     snap = json.loads(c.get_code_snapshot())
-    assert snap["commit"] == commit
-    assert snap["evidence_hash"] == eh
+    assert snap["commit"] == commit and snap["contract_hash"] == "b" * 64
 
 
-def test_store_evidence_condition_met():
-    import genlayer
-
-    c = _c()
-    genlayer.message.sender_address = OWNER
-    c.credit(CLIENT, "100")
-    genlayer.message.sender_address = CLIENT
-    c.create_deal("demo-ev", PROVIDER, TERMS, URLS, "100")
-    c.fund("demo-ev")
+def test_store_evidence_is_for_the_parties_and_must_match_the_amount():
+    c = _delivered()
     payload = {
-        "dealUrl": "https://test-server.genlayer.com/static/genvm/hello.html",
-        "signature": "0x" + ("ab" * 32),
-        "amount": "100",
+        "dealUrl": "https://provider.example/delivery",
+        "signature": "0x" + "ab" * 32,
+        "amount": str(GEN),
         "condition_met": True,
-        "metadata": {"deal_id": "demo-ev"},
+        "metadata": {"deal_id": D},
     }
-    c.store_evidence("demo-ev", json.dumps(payload))
-    ev = json.loads(c.get_evidence("demo-ev"))
-    assert ev["condition_met"] is True
-    assert ev["payload_hash"]
-    tmpl = json.loads(c.get_criteria_template())
-    assert "dealUrl" in tmpl["required_fields"]
+    gl.message.sender_address = OWNER
+    with pytest.raises(Exception, match="only deal parties"):
+        c.store_evidence(D, json.dumps(payload))
+    gl.message.sender_address = PROVIDER
+    with pytest.raises(Exception, match="must match deal amount"):
+        c.store_evidence(D, json.dumps({**payload, "amount": "5"}))
+    with pytest.raises(Exception, match="must be a boolean"):
+        c.store_evidence(D, json.dumps({**payload, "condition_met": "yes"}))
+    c.store_evidence(D, json.dumps(payload))
+    stored = json.loads(c.get_evidence(D))
+    assert stored["condition_met"] is True and stored["submitter"] == PROVIDER
+    assert _deal(c)["evidence_payload_hash"] == stored["payload_hash"]
 
 
-def test_cross_check_static_fixture_matches():
-    import genlayer
+def test_cross_check_flags_a_page_that_changed_after_freezing():
+    c = _delivered()
+    c.cross_check(D)
+    deal = _deal(c)
+    assert deal["tampered_listing"] is False and deal["tampered_delivery"] is False
+    gl.pages["https://provider.example/delivery"] = "Something else entirely"
+    c.cross_check(D)
+    deal = _deal(c)
+    assert deal["tampered_delivery"] is True and deal["tampered_listing"] is False
+    assert deal["checks"] == 2 and json.loads(c.get_stats())["tampered"] == 1
 
-    c = _c()
-    genlayer.message.sender_address = OWNER
-    c.credit(CLIENT, "100")
-    genlayer.message.sender_address = CLIENT
-    c.create_deal("demo-cc", PROVIDER, TERMS, URLS, "10")
-    c.fund("demo-cc")
-    genlayer.message.sender_address = PROVIDER
-    c.submit_delivery("demo-cc", URLS)
-    c.cross_check("demo-cc")
-    deal = json.loads(c.get_deal("demo-cc"))
-    assert deal["checks"] == 1
-    assert deal["tampered_listing"] is False
-    assert deal["tampered_delivery"] is False
+
+def test_the_schedule_view_says_which_step_is_accepted():
+    c = _created()
+    s = json.loads(c.get_schedule(D))
+    assert s["can_fund"] is True and s["can_deliver"] is False and s["escrow"] == "0"
+    gl.message.sender_address = CLIENT
+    pay(gl, c.fund, GEN, D)
+    s = json.loads(c.get_schedule(D))
+    assert s["can_deliver"] is True and s["can_reclaim"] is False and s["escrow"] == str(GEN)
+    advance(gl, DAY)
+    s = json.loads(c.get_schedule(D))
+    assert s["can_deliver"] is False and s["can_reclaim"] is True

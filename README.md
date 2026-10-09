@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://valentinzubok.github.io/DealGuard/"><img src="https://img.shields.io/badge/Website-Live-0ea5a0?style=for-the-badge" alt="Website" /></a>
-  <a href="https://explorer-studio-dev.genlayer.com/address/0x0e4619B776f849F0527B32DA86c0ED13c8841AB6"><img src="https://img.shields.io/badge/Studio%20Dev%2061997-Contract-111827?style=for-the-badge" alt="Contract" /></a>
+  <a href="https://explorer-studio-dev.genlayer.com/address/0x5acb72C8B75A03D198044Ef450ccF5b253665FCC"><img src="https://img.shields.io/badge/Studio%20Dev%2061997-Contract-111827?style=for-the-badge" alt="Contract" /></a>
   <a href="https://valentinzubok.github.io/DealGuard/console/"><img src="https://img.shields.io/badge/App-Live%20console-ef4444?style=for-the-badge" alt="Console" /></a>
 </p>
 
@@ -24,7 +24,7 @@
 | | |
 |---|---|
 | **Website** | https://valentinzubok.github.io/DealGuard/ |
-| **Contract (Studio Dev, chain 61997)** | [`0x0e4619B776f849F0527B32DA86c0ED13c8841AB6`](https://explorer-studio-dev.genlayer.com/address/0x0e4619B776f849F0527B32DA86c0ED13c8841AB6) · [deploy record](STUDIO_DEV_DEPLOY.md) |
+| **Contract (Studio Dev, chain 61997)** | [`0x5acb72C8B75A03D198044Ef450ccF5b253665FCC`](https://explorer-studio-dev.genlayer.com/address/0x5acb72C8B75A03D198044Ef450ccF5b253665FCC) · [deploy record](STUDIO_DEV_DEPLOY.md) |
 | **Demo video** | [`assets/demo/dealguard-demo.mp4`](https://github.com/valentinzubok/DealGuard/blob/main/assets/demo/dealguard-demo.mp4) (2:45, real Studio Dev txs) |
 | **Live app** | https://valentinzubok.github.io/DealGuard/console/ — MetaMask reads/writes the contract |
 | **Studio** | https://studio-dev.genlayer.com/run-debug |
@@ -41,11 +41,12 @@ Agents already buy, sell, and dispute from the open web. Between deal open and a
 **DealGuard** is the missing commerce primitive:
 
 1. **Freeze** listing URLs at deal open (SHA-256 + validator consensus)
-2. **Escrow** bookkeeping units until delivery
+2. **Escrow** the price in native GEN: `fund()` is payable and the money sits in the contract
 3. **Freeze** delivery evidence when the provider submits
 4. **Adjudicate** with GenLayer LLMs against **frozen** snapshots only
 5. **Cross-check** later to prove drift / tamper
-6. **Score** party reputation from outcomes
+6. **Pay out** on the verdict: to the provider, or back to the client. No third exit
+7. **Score** party reputation from outcomes
 
 Not another wrapper agent. Infrastructure other agent marketplaces compose.
 
@@ -59,12 +60,35 @@ sequenceDiagram
   Client->>DealGuard: create_deal(terms, listing_urls)
   DealGuard->>Web: get_webpage (nondet)
   V->>V: strict_eq on SHA-256 snapshot
-  Client->>DealGuard: fund
+  Client->>DealGuard: fund (payable, value = amount in GEN)
   Note over DealGuard: Provider submit_delivery → freeze delivery
   Client->>DealGuard: dispute / adjudicate
   V->>V: prompt_comparative on pay_provider
-  DealGuard-->>Client: settled_pay or settled_refund
+  DealGuard-->>Client: settled_pay (GEN to provider) or settled_refund (GEN back to client)
 ```
+
+---
+
+## v2: the escrow holds real GEN
+
+v1 moved bookkeeping units that the contract owner minted with `credit()`, and the owner could
+release or dispute any deal. Nothing was at stake. v2 removes all of that.
+
+| | v1 | v2 |
+|---|---|---|
+| What is escrowed | units minted by the owner | native GEN sent with `fund()` |
+| Who can release | client **or owner** | client only |
+| Who can dispute | parties **or owner** | parties only |
+| Provider never delivers | funds stuck until someone acts | `reclaim()` after the committed `delivery_window` |
+| A refused `fund()` | n/a | never reverts with value attached; the amount becomes a credit the sender withdraws |
+| How money leaves | a number changes | an external transfer to the provider's or the client's wallet, after state is updated |
+
+Two facts about the network shaped the money code, and both were checked on chain: value
+attached to a call that reverts is not returned, and an internal message to a wallet pays
+nobody. So `fund()` does not raise once value is attached, and payouts go out as external
+transfers through an EVM interface. [`tests/test_escrow.py`](tests/test_escrow.py) holds the
+contract to this: after every step of a random run, the contract balance equals open escrow
+plus credits.
 
 ---
 
@@ -115,12 +139,12 @@ NEXT_PUBLIC_BASE_PATH=/DealGuard NEXT_BASE_PATH=/DealGuard npm run build
 # static files in web/out/
 ```
 
-No `.env` is required: the app defaults to the live Studio Dev contract `0x0e4619B776f849F0527B32DA86c0ED13c8841AB6` (override with `NEXT_PUBLIC_DEALGUARD_ADDRESS`). Open `/console/` and connect MetaMask — it switches to chain 61997.
+No `.env` is required: the app defaults to the live Studio Dev contract `0x5acb72C8B75A03D198044Ef450ccF5b253665FCC` (override with `NEXT_PUBLIC_DEALGUARD_ADDRESS`). Open `/console/` and connect MetaMask — it switches to chain 61997.
 
 ### 3) Deploy / use the live demo on Studio
 
 1. Open [GenLayer Studio Dev](https://studio-dev.genlayer.com/run-debug) (chain 61997)
-2. Paste [`contracts/DealGuard.py`](contracts/DealGuard.py) **or** use the [already-deployed contract](https://explorer-studio-dev.genlayer.com/address/0x0e4619B776f849F0527B32DA86c0ED13c8841AB6) from the [live console](https://valentinzubok.github.io/DealGuard/console/)
+2. Paste [`contracts/DealGuard.py`](contracts/DealGuard.py) **or** use the [already-deployed contract](https://explorer-studio-dev.genlayer.com/address/0x5acb72C8B75A03D198044Ef450ccF5b253665FCC) from the [live console](https://valentinzubok.github.io/DealGuard/console/)
 3. Follow [Quickstart on the site](https://valentinzubok.github.io/DealGuard/quickstart/) or [`examples/demo_flow.md`](examples/demo_flow.md)
 
 Demo listing URL:
@@ -129,7 +153,9 @@ Demo listing URL:
 ["https://test-server.genlayer.com/static/genvm/hello.html"]
 ```
 
-**Pitch path (read-only, no second wallet):** `get_code_snapshot` → `get_criteria_template` → `get_deal("demo-1")` → `get_evidence("demo-1")`. See [`DEPLOY.md`](DEPLOY.md).
+Delivery fixtures used on chain: [`delivery-ok.html`](web/public/fixtures/delivery-ok.html) and [`delivery-placeholder.html`](web/public/fixtures/delivery-placeholder.html).
+
+**Read-only path (no wallet):** `get_stats` → `list_deals` → `get_deal("pay-1")` → `get_schedule("pay-1")` → `get_escrow_balance`.
 
 ---
 
@@ -138,13 +164,15 @@ Demo listing URL:
 | Capability | Detail |
 |---|---|
 | `create_deal` | Freeze up to 6 listing `https://` URLs under `eq_principle_strict_eq` |
-| `fund` | Lock client bookkeeping units into escrow |
+| `fund` | **Payable.** The client sends the deal amount in native GEN; it stays in the contract balance. With value attached it never reverts: what cannot be escrowed is credited back |
+| `withdraw_credit` | Take back GEN that `fund` refused to escrow |
+| `reclaim` | No delivery by the committed deadline: the client takes the escrow back |
 | `submit_delivery` | Provider freezes delivery evidence |
-| `release` | Happy-path payout |
-| `dispute` + `adjudicate` | LLM judges frozen listing+delivery vs natural-language terms |
+| `release` | The client accepts the delivery; the provider's wallet is paid. Client only |
+| `dispute` + `adjudicate` | Parties only may dispute. Validators judge frozen listing+delivery vs the terms, and the escrow follows the verdict |
 | `cross_check` | Prove SHA-256 drift on listing or delivery |
 | Reputation | wins / losses / score per address |
-| Studio-safe | JSON string state; owner as ctor arg |
+| No operator | The owner can pin the code snapshot and hand ownership over. It cannot mint, release, dispute, reclaim or move anyone's deal |
 
 Full tables: [Features](https://valentinzubok.github.io/DealGuard/features/) · [API reference](https://valentinzubok.github.io/DealGuard/api-reference/)
 
@@ -154,11 +182,11 @@ Full tables: [Features](https://valentinzubok.github.io/DealGuard/features/) · 
 
 | Item | Link |
 |------|------|
-| **Contract** | [`0x0e4619B776f849F0527B32DA86c0ED13c8841AB6`](https://explorer-studio-dev.genlayer.com/address/0x0e4619B776f849F0527B32DA86c0ED13c8841AB6) |
-| **Source check** | on-chain code sha256 = `d69a3444…96ad` = `contracts/DealGuard.py` |
-| **Lifecycle txs** | deploy → credit → create_deal → fund → submit_delivery → release; dispute → adjudicate (LLM) — see [`STUDIO_DEV_DEPLOY.md`](STUDIO_DEV_DEPLOY.md) |
+| **Contract** | [`0x5acb72C8B75A03D198044Ef450ccF5b253665FCC`](https://explorer-studio-dev.genlayer.com/address/0x5acb72C8B75A03D198044Ef450ccF5b253665FCC) |
+| **Source check** | on-chain code sha256 = `eb986d73…1f9a` = `contracts/DealGuard.py` |
+| **Lifecycle txs** | three funded deals: release pays the provider; dispute → adjudicate refunds the client; a missed deadline is reclaimed. Balances before and after — see [`STUDIO_DEV_DEPLOY.md`](STUDIO_DEV_DEPLOY.md) |
 | **App** | [`/console/`](https://valentinzubok.github.io/DealGuard/console/) |
-| **Legacy Studionet (61999)** | [`DEPLOY.md`](DEPLOY.md) |
+| **v1 (bookkeeping units, superseded)** | `0x0e4619B7…1AB6` on Studio Dev; Studionet (61999) in [`DEPLOY.md`](DEPLOY.md) |
 
 ---
 

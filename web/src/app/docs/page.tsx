@@ -121,10 +121,10 @@ export default function DocsPage() {
           Open examples/demo_flow.md
         </a>
       </p>
-      <pre className="code">{`credit(you, "1000")
-create_deal("demo-1", provider, "Must contain Hello",
-  '["https://test-server.genlayer.com/static/genvm/hello.html"]', "100")
-fund("demo-1")
+      <pre className="code">{`create_deal("demo-1", provider, "Must contain Hello",
+  '["https://test-server.genlayer.com/static/genvm/hello.html"]',
+  "1000000000000000000", "3600")
+fund("demo-1")   // payable: value = 1 GEN
 submit_delivery("demo-1", '["https://test-server.genlayer.com/static/genvm/hello.html"]')
 dispute("demo-1", "Check delivery against terms")
 adjudicate("demo-1")

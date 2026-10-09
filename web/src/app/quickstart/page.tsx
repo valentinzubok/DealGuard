@@ -28,17 +28,17 @@ Constructor (new deploy): your 0x…
 → SUCCESS · FINALIZED`,
   },
   {
-    title: "Credit + create deal",
-    body: "Owner credits the client, then create_deal with a provider address that is not the client (placeholder 0x1111… is fine for listing freeze demo).",
+    title: "Create deal + fund with GEN",
+    body: "v2 has no credit(): the client needs test GEN in the wallet. create_deal with a provider address that is not the client (placeholder 0x1111… is fine for listing freeze demo).",
     tip: "Listing URL fixture: https://test-server.genlayer.com/static/genvm/hello.html",
-    shot: `credit(0x6f60…46e3, "1000")
-create_deal(
+    shot: `create_deal(
   "demo-1",
   "0x1111111111111111111111111111111111111111",
   "Deliver hello page",
   '["https://test-server.genlayer.com/static/genvm/hello.html"]',
-  "100"
+  "1000000000000000000", "3600"
 )
+fund("demo-1")  // value = 1 GEN
 → listing hash c0535e4b…`,
   },
   {

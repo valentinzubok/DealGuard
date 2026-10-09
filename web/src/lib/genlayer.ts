@@ -42,6 +42,7 @@ export async function writeAndWait(
   address: Address,
   functionName: string,
   args: CalldataEncodable[] = [],
+  value: bigint = BigInt(0),
 ): Promise<string> {
   const client = getWriteClient(account, provider as EthereumProvider);
   // Studio Dev enforces the fee system: every tx must carry a non-zero fee deposit.
@@ -50,7 +51,8 @@ export async function writeAndWait(
     address,
     functionName,
     args,
-    value: BigInt(0),
+    // GEN sent to a payable method (the escrow). Separate from the fee deposit below.
+    value,
     fees,
   });
   await client.waitForTransactionReceipt({

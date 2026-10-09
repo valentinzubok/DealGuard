@@ -1,9 +1,9 @@
 {
-  "commit": "9966894811d14eb132f061431e0dc2187b5dd3f6",
-  "evidence_hash": "77d91d859c15be205bc05eaf7234540ba20885cf489173eb0e68afdbeb6d8458",
+  "commit": "f51e920a2cc1a525b9dc4d06977c698f12916f06",
+  "evidence_hash": "ac0d27152a940809c965c46bb14f6605e40d16a307b3d77ba833d18006c5b42b",
   "evidence_hash_algo": "sha256(git_rev_parse_HEAD)",
-  "contract_hash": "d69a3444de6b99bb6a919c11003d69d6900681943f00b8d081cc037a52f996ad",
+  "contract_hash": "eb986d73740000d7756fa71c43837154616f473bfe73a007e21e387594d31f9a",
   "contract_hash_algo": "sha256(contracts/DealGuard.py)",
-  "timestamp": "2026-09-18T12:19:00Z",
+  "timestamp": "2026-10-09T16:46:30Z",
   "note": "Pinned code snapshot for Agent Tank validators"
 }

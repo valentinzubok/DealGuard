@@ -1,5 +1,5 @@
 /** Live DealGuard deploy on GenLayer Studio Dev (chain 61997). Override via env. */
-export const DEFAULT_CONTRACT_ADDRESS = "0x0e4619B776f849F0527B32DA86c0ED13c8841AB6";
+export const DEFAULT_CONTRACT_ADDRESS = "0x5acb72C8B75A03D198044Ef450ccF5b253665FCC";
 
 export const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_DEALGUARD_ADDRESS ||
   DEFAULT_CONTRACT_ADDRESS) as `0x${string}`;

@@ -172,7 +172,7 @@ export default function HomePage() {
             {[
               ["1", "Deploy", "Paste DealGuard.py · constructor = your 0x"],
               ["2", "Pin", "pin_code_snapshot from CODE_SNAPSHOT.json"],
-              ["3", "Credit", "credit(client, \"1000\") as owner"],
+              ["3", "GEN", "Client wallet holds test GEN · fund() is payable"],
               ["4", "Deal", "create_deal → fund → submit_delivery"],
               ["5", "Settle", "release or dispute → adjudicate → cross_check"],
               ["6", "Evidence", "store_evidence with condition_met JSON"],

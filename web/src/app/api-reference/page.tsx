@@ -7,14 +7,14 @@ const METHODS = [
   {
     name: "create_deal",
     type: "write",
-    in: "deal_id: str, provider: 0x, terms: str, listing_urls_json: str, amount: str",
+    in: "deal_id: str, provider: 0x, terms: str, listing_urls_json: str, amount: str (wei), delivery_window: str (seconds)",
     out: "null · stores deal with listing_items[{url,content_hash,preview,status}]",
   },
   {
     name: "fund",
-    type: "write",
-    in: "deal_id: str",
-    out: "null · moves amount available→escrowed",
+    type: "write · payable",
+    in: "deal_id: str · value = deal amount in native GEN",
+    out: "{funded, escrowed, credited, reason?} · never reverts with value attached",
   },
   {
     name: "submit_delivery",
@@ -26,7 +26,13 @@ const METHODS = [
     name: "release / dispute / adjudicate / cross_check",
     type: "write",
     in: "deal_id (+ claim for dispute)",
-    out: "settlement status / tamper flags",
+    out: "GEN paid to the provider or refunded to the client / tamper flags",
+  },
+  {
+    name: "reclaim / withdraw_credit",
+    type: "write",
+    in: "deal_id for reclaim",
+    out: "wei returned to the caller: escrow after a missed deadline, or a refused funding",
   },
   {
     name: "pin_code_snapshot",
@@ -47,9 +53,9 @@ const METHODS = [
     out: "JSON string",
   },
   {
-    name: "get_balance / get_reputation / get_stats / list_deals / get_owner",
+    name: "get_credit / get_escrow_balance / get_schedule / get_reputation / get_stats / list_deals / get_owner",
     type: "view",
-    in: "user for balance/reputation",
+    in: "user for credit/reputation, deal_id for schedule",
     out: "JSON / address / array",
   },
 ];
