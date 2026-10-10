@@ -2,6 +2,20 @@
 
 All notable product and pin changes. On-chain integrity is anchored by [`CODE_SNAPSHOT.json`](CODE_SNAPSHOT.json) + `pin_code_snapshot` (see [`DEPLOY.md`](DEPLOY.md)).
 
+## [0.4.0] — 2026-10-10 · v2: the escrow holds native GEN
+
+| Area | Change |
+|------|--------|
+| Contract | `fund()` is payable: the deal amount is held in the contract's native balance. Deployed → `0x5acb72C8B75A03D198044Ef450ccF5b253665FCC` |
+| Contract | Money leaves only to the provider (`release`, `adjudicate` in their favour) or back to the client (`adjudicate` against the provider, `reclaim` after `delivery_window`) |
+| Contract | `fund()` never reverts with value attached; a refused amount is credited and taken back with `withdraw_credit` |
+| Contract | Removed `credit()`, `get_balance` and the owner's power to release or dispute other people's deals |
+| Contract | Payouts are external wallet transfers, emitted after state is updated |
+| Views | `get_schedule`, `get_credit`, `get_escrow_balance` |
+| Tests | 54 tests; `tests/test_escrow.py` checks balance == escrow + credits after every step of a random run |
+| App | `/console/` sends the amount as the transaction value, shows deadlines, reclaim and credit |
+| Chain | Four funded deals on Studio Dev with wallet balances before and after (see `STUDIO_DEV_DEPLOY.md`) |
+
 ## [0.3.0] — 2026-09-18 · Studio Dev (61997) + live app
 
 | Area | Change |

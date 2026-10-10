@@ -22,6 +22,16 @@ type Entry = {
 
 const LOG: Entry[] = [
   {
+    version: "0.4.0 · Native GEN escrow",
+    date: "2026-10-10",
+    rows: [
+      { area: "Contract", change: "fund() is payable; the price sits in the contract balance" },
+      { area: "Contract", change: "Payout to the provider or refund to the client; reclaim after the deadline" },
+      { area: "Contract", change: "credit() and owner release/dispute removed; withdraw_credit added" },
+      { area: "Chain", change: "Four funded deals on Studio Dev with wallet balances before and after" },
+    ],
+  },
+  {
     version: "0.2.1 · Operator UX",
     date: "2026-09-04",
     rows: [
