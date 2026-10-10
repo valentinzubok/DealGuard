@@ -29,6 +29,6 @@ operator.
 
 ## Checked
 
-- 54 tests (`python3 -m pytest -q`), 20 of them about money in [`tests/test_escrow.py`](../tests/test_escrow.py).
+- 54 tests (`python3 -m pytest -q`), 24 of them about money in [`tests/test_escrow.py`](../tests/test_escrow.py).
 - CI verifies that `CODE_SNAPSHOT.json` matches `contracts/DealGuard.py`.
 - On chain: a payout, a refund by verdict, a reclaim after a missed deadline, a refused funding returned, and five refused calls (early reclaim, late delivery, a stranger disputing, the provider releasing, a stranger funding).
