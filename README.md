@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://valentinzubok.github.io/DealGuard/"><img src="https://img.shields.io/badge/Website-Live-0ea5a0?style=for-the-badge" alt="Website" /></a>
-  <a href="https://explorer-studio-dev.genlayer.com/address/0x5acb72C8B75A03D198044Ef450ccF5b253665FCC"><img src="https://img.shields.io/badge/Studio%20Dev%2061997-Contract-111827?style=for-the-badge" alt="Contract" /></a>
+  <a href="https://explorer-studio-dev.genlayer.com/address/0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85"><img src="https://img.shields.io/badge/Studio%20Dev%2061997-Contract-111827?style=for-the-badge" alt="Contract" /></a>
   <a href="https://valentinzubok.github.io/DealGuard/console/"><img src="https://img.shields.io/badge/App-Live%20console-ef4444?style=for-the-badge" alt="Console" /></a>
 </p>
 
@@ -24,7 +24,7 @@
 | | |
 |---|---|
 | **Website** | https://valentinzubok.github.io/DealGuard/ |
-| **Contract (Studio Dev, chain 61997)** | [`0x5acb72C8B75A03D198044Ef450ccF5b253665FCC`](https://explorer-studio-dev.genlayer.com/address/0x5acb72C8B75A03D198044Ef450ccF5b253665FCC) · [deploy record](STUDIO_DEV_DEPLOY.md) |
+| **Contract (Studio Dev, chain 61997)** | [`0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85`](https://explorer-studio-dev.genlayer.com/address/0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85) · [deploy record](STUDIO_DEV_DEPLOY.md) |
 | **Demo video** | [`assets/demo/dealguard-demo.mp4`](https://github.com/valentinzubok/DealGuard/blob/main/assets/demo/dealguard-demo.mp4) (2:45, real Studio Dev txs) |
 | **Live app** | https://valentinzubok.github.io/DealGuard/console/ — MetaMask reads/writes the contract |
 | **Studio** | https://studio-dev.genlayer.com/run-debug |
@@ -43,7 +43,7 @@ Agents already buy, sell, and dispute from the open web. Between deal open and a
 1. **Freeze** listing URLs at deal open (SHA-256 + validator consensus)
 2. **Escrow** the price in native GEN: `fund()` is payable and the money sits in the contract
 3. **Freeze** delivery evidence when the provider submits
-4. **Adjudicate** with GenLayer LLMs against **frozen** snapshots only
+4. **Adjudicate** with GenLayer LLMs against **frozen** snapshots only. The result is a ruling, not a payment: the losing side has a committed window to **appeal** to a second, independent round
 5. **Cross-check** later to prove drift / tamper
 6. **Pay out** on the verdict: to the provider, or back to the client. No third exit
 7. **Score** party reputation from outcomes
@@ -64,8 +64,32 @@ sequenceDiagram
   Note over DealGuard: Provider submit_delivery → freeze delivery
   Client->>DealGuard: dispute / adjudicate
   V->>V: prompt_comparative on pay_provider
+  Note over DealGuard: ruling recorded, nothing paid
+  Client->>DealGuard: appeal (losing side, inside the window) → adjudicate_appeal
   DealGuard-->>Client: settled_pay (GEN to provider) or settled_refund (GEN back to client)
 ```
+
+---
+
+## v3: a verdict is a ruling, not a payment
+
+In v2 one consensus round moved the escrow at once. Anyone could call `adjudicate` the moment a
+delivery was frozen, the provider included, and a single wrong verdict was final: there was no
+second look and no time for the other side to object. v3 separates the ruling from the payment.
+
+| | v2 | v3 |
+|---|---|---|
+| What `adjudicate` does | decides and pays in one transaction | records a ruling; the escrow does not move |
+| A wrong first verdict | final | the side it went against appeals inside `appeal_window`; a second, independent round decides |
+| Who may appeal | n/a | only the losing side, once, only while the window is open |
+| What the second round sees | n/a | the same frozen evidence and the grounds, fenced as an argument. Not the first ruling |
+| When money moves | on the first verdict | on the appeal verdict, or on `settle` after the window passes unused |
+| Rule + pay in one breath | possible | impossible: `settle` reverts until the window has fully elapsed |
+
+`appeal_window` is fixed in `create_deal` (60 seconds to 30 days) and has no setter. It is elapsed
+time since the ruling, not a calendar window. [`tests/test_appeal.py`](tests/test_appeal.py) has
+32 tests for this, and the on-chain record shows an appeal decided by a second round, a ruling
+settled after an unused window, and every refused shortcut.
 
 ---
 
@@ -139,12 +163,12 @@ NEXT_PUBLIC_BASE_PATH=/DealGuard NEXT_BASE_PATH=/DealGuard npm run build
 # static files in web/out/
 ```
 
-No `.env` is required: the app defaults to the live Studio Dev contract `0x5acb72C8B75A03D198044Ef450ccF5b253665FCC` (override with `NEXT_PUBLIC_DEALGUARD_ADDRESS`). Open `/console/` and connect MetaMask — it switches to chain 61997.
+No `.env` is required: the app defaults to the live Studio Dev contract `0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85` (override with `NEXT_PUBLIC_DEALGUARD_ADDRESS`). Open `/console/` and connect MetaMask — it switches to chain 61997.
 
 ### 3) Deploy / use the live demo on Studio
 
 1. Open [GenLayer Studio Dev](https://studio-dev.genlayer.com/run-debug) (chain 61997)
-2. Paste [`contracts/DealGuard.py`](contracts/DealGuard.py) **or** use the [already-deployed contract](https://explorer-studio-dev.genlayer.com/address/0x5acb72C8B75A03D198044Ef450ccF5b253665FCC) from the [live console](https://valentinzubok.github.io/DealGuard/console/)
+2. Paste [`contracts/DealGuard.py`](contracts/DealGuard.py) **or** use the [already-deployed contract](https://explorer-studio-dev.genlayer.com/address/0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85) from the [live console](https://valentinzubok.github.io/DealGuard/console/)
 3. Follow [Quickstart on the site](https://valentinzubok.github.io/DealGuard/quickstart/) or [`examples/demo_flow.md`](examples/demo_flow.md)
 
 Demo listing URL:
@@ -155,7 +179,7 @@ Demo listing URL:
 
 Delivery fixtures used on chain: [`delivery-ok.html`](web/public/fixtures/delivery-ok.html) and [`delivery-placeholder.html`](web/public/fixtures/delivery-placeholder.html).
 
-**Read-only path (no wallet):** `get_stats` → `list_deals` → `get_deal("pay-1")` → `get_schedule("pay-1")` → `get_escrow_balance`.
+**Read-only path (no wallet):** `get_stats` → `list_deals` → `get_deal("appeal-1")` → `get_schedule("appeal-1")` → `get_escrow_balance`.
 
 ---
 
@@ -169,7 +193,10 @@ Delivery fixtures used on chain: [`delivery-ok.html`](web/public/fixtures/delive
 | `reclaim` | No delivery by the committed deadline: the client takes the escrow back |
 | `submit_delivery` | Provider freezes delivery evidence |
 | `release` | The client accepts the delivery; the provider's wallet is paid. Client only |
-| `dispute` + `adjudicate` | Parties only may dispute. Validators judge frozen listing+delivery vs the terms, and the escrow follows the verdict |
+| `dispute` + `adjudicate` | Parties only may dispute. Validators judge frozen listing+delivery vs the terms. The verdict is recorded as a **ruling**; nothing is paid yet |
+| `appeal` | The side the ruling went against, once, inside the `appeal_window` fixed at creation |
+| `adjudicate_appeal` | A second, independent consensus round over the same frozen evidence, with the grounds in view as an argument. Final, and paid in the same call |
+| `settle` | Anyone, once the window has closed with no appeal: the ruling is paid |
 | `cross_check` | Prove SHA-256 drift on listing or delivery |
 | Reputation | wins / losses / score per address |
 | No operator | The owner can pin the code snapshot and hand ownership over. It cannot mint, release, dispute, reclaim or move anyone's deal |
@@ -182,10 +209,11 @@ Full tables: [Features](https://valentinzubok.github.io/DealGuard/features/) · 
 
 | Item | Link |
 |------|------|
-| **Contract** | [`0x5acb72C8B75A03D198044Ef450ccF5b253665FCC`](https://explorer-studio-dev.genlayer.com/address/0x5acb72C8B75A03D198044Ef450ccF5b253665FCC) |
-| **Source check** | on-chain code sha256 = `eb986d73…1f9a` = `contracts/DealGuard.py` |
-| **Lifecycle txs** | three funded deals: release pays the provider; dispute → adjudicate refunds the client; a missed deadline is reclaimed. Balances before and after — see [`STUDIO_DEV_DEPLOY.md`](STUDIO_DEV_DEPLOY.md) |
+| **Contract** | [`0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85`](https://explorer-studio-dev.genlayer.com/address/0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85) |
+| **Source check** | on-chain code sha256 = `193d295f…a4a7` = `contracts/DealGuard.py` |
+| **Lifecycle txs** | a ruling settled after an unused appeal window; a ruling appealed and decided by a second round; a release; and every refused shortcut. Balances before and after — see [`STUDIO_DEV_DEPLOY.md`](STUDIO_DEV_DEPLOY.md) |
 | **App** | [`/console/`](https://valentinzubok.github.io/DealGuard/console/) |
+| **v2 (no appeal, superseded)** | `0x5acb72C8…5FCC`, run in [`docs/STUDIO_DEV_V2_RUN.md`](docs/STUDIO_DEV_V2_RUN.md) |
 | **v1 (bookkeeping units, superseded)** | `0x0e4619B7…1AB6` on Studio Dev; Studionet (61999) in [`DEPLOY.md`](DEPLOY.md) |
 
 ---

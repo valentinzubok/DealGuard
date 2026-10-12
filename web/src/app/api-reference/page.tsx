@@ -7,7 +7,7 @@ const METHODS = [
   {
     name: "create_deal",
     type: "write",
-    in: "deal_id: str, provider: 0x, terms: str, listing_urls_json: str, amount: str (wei), delivery_window: str (seconds)",
+    in: "deal_id: str, provider: 0x, terms: str, listing_urls_json: str, amount: str (wei), delivery_window: str (seconds), appeal_window: str (seconds)",
     out: "null · stores deal with listing_items[{url,content_hash,preview,status}]",
   },
   {
@@ -26,7 +26,13 @@ const METHODS = [
     name: "release / dispute / adjudicate / cross_check",
     type: "write",
     in: "deal_id (+ claim for dispute)",
-    out: "GEN paid to the provider or refunded to the client / tamper flags",
+    out: "release pays the provider / adjudicate records a ruling, pays nothing / tamper flags",
+  },
+  {
+    name: "appeal / adjudicate_appeal / settle",
+    type: "write",
+    in: "deal_id (+ grounds for appeal)",
+    out: "losing side appeals once in the window → second round is final and pays; settle pays an unappealed ruling",
   },
   {
     name: "reclaim / withdraw_credit",

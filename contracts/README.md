@@ -5,14 +5,17 @@ Intelligent Contract: [`DealGuard.py`](DealGuard.py)
 | Method | Type | Args | Effect |
 |--------|------|------|--------|
 | `__init__` | ctor | `owner_address` | Bootstrap storage |
-| `create_deal` | write | `deal_id`, `provider`, `terms`, `listing_urls_json`, `amount` (wei), `delivery_window` (s, default 86400) | Freeze listing URLs (SHA-256 + `eq_principle_strict_eq`) |
+| `create_deal` | write | `deal_id`, `provider`, `terms`, `listing_urls_json`, `amount` (wei), `delivery_window` (s, default 86400), `appeal_window` (s, default 3600) | Freeze listing URLs (SHA-256 + `eq_principle_strict_eq`) |
 | `fund` | write · **payable** | `deal_id` | Client escrows the amount in native GEN. Never reverts with value attached; a refused amount is credited |
 | `withdraw_credit` | write | — | Take back GEN `fund` could not escrow |
 | `reclaim` | write | `deal_id` | Client only, funded deal with no delivery, after `delivery_due_at`: escrow returns to the client |
 | `submit_delivery` | write | `deal_id`, `delivery_urls_json` | Provider freezes delivery evidence |
 | `release` | write | `deal_id` | Client only: the provider's wallet is paid |
 | `dispute` | write | `deal_id`, `claim` | Parties only |
-| `adjudicate` | write | `deal_id` | LLM judges **frozen** evidence → GEN to the provider or back to the client (`prompt_comparative` on `pay_provider`) |
+| `adjudicate` | write | `deal_id` | Validators judge **frozen** evidence (`prompt_comparative` on `pay_provider`). Records a **ruling** and opens the appeal window. Pays nothing |
+| `appeal` | write | `deal_id`, `grounds` | The side the ruling went against, once, while the window is open |
+| `adjudicate_appeal` | write | `deal_id` | Second independent round, grounds in view as an argument. Final: GEN to the provider or back to the client |
+| `settle` | write | `deal_id` | Anyone, after the window with no appeal: the ruling is paid |
 | `cross_check` | write | `deal_id` | Re-fetch URLs; flag listing/delivery tamper |
 | `get_deal` | view | `deal_id` | Full deal JSON |
 | `list_deals` | view | — | Deal id order |
@@ -33,8 +36,9 @@ Intelligent Contract: [`DealGuard.py`](DealGuard.py)
 ```text
 open → funded → delivered → completed
           ↘ reclaimed (no delivery by the deadline)
-                         ↘ disputed → settled_pay | settled_refund
-                         ↘ adjudicate (from delivered) → settled_*
+                         ↘ disputed ↘
+                         ↘ adjudicate → ruled → settle (window passed) → settled_pay | settled_refund
+                                             ↘ appealed → adjudicate_appeal → settled_pay | settled_refund
 ```
 
 ## Studio demo URLs

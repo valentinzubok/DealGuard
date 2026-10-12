@@ -22,6 +22,15 @@ type Entry = {
 
 const LOG: Entry[] = [
   {
+    version: "0.5.0 · Appeal before payment",
+    date: "2026-10-12",
+    rows: [
+      { area: "Contract", change: "adjudicate records a ruling; the escrow does not move" },
+      { area: "Contract", change: "appeal by the losing side, then a second independent round" },
+      { area: "Contract", change: "settle pays an unappealed ruling after the committed window" },
+    ],
+  },
+  {
     version: "0.4.0 · Native GEN escrow",
     date: "2026-10-10",
     rows: [

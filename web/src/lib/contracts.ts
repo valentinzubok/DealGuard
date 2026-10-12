@@ -27,6 +27,14 @@ export type DealRow = {
   listing_items?: unknown[];
   delivery_items?: unknown[];
   pay_provider?: boolean;
+  /** v3: seconds the losing side has to appeal a ruling before it can be paid. */
+  appeal_window?: number;
+  ruling_pay?: boolean;
+  appeal_until?: number;
+  appellant?: string;
+  grounds?: string;
+  appeal_result?: string;
+  outcome?: string;
 };
 
 export async function listDeals(): Promise<string[]> {
@@ -71,6 +79,11 @@ export type Schedule = {
   can_release: boolean;
   can_dispute: boolean;
   can_adjudicate: boolean;
+  appeal_until: number;
+  ruling_pay: boolean;
+  can_appeal: boolean;
+  can_settle: boolean;
+  can_adjudicate_appeal: boolean;
 };
 
 export async function getSchedule(id: string): Promise<Schedule | null> {
@@ -88,6 +101,7 @@ export async function createDeal(
   listingUrlsJson: string,
   amountWei: string,
   deliveryWindow: string,
+  appealWindow: string,
 ) {
   return writeAndWait(account, provider, requireAddress(), "create_deal", [
     dealId,
@@ -96,6 +110,7 @@ export async function createDeal(
     listingUrlsJson,
     amountWei,
     deliveryWindow,
+    appealWindow,
   ]);
 }
 
@@ -144,4 +159,19 @@ export async function dispute(
 
 export async function adjudicate(account: Address, provider: unknown, dealId: string) {
   return writeAndWait(account, provider, requireAddress(), "adjudicate", [dealId]);
+}
+
+/** The side a ruling went against asks for a second consensus round. */
+export async function appeal(account: Address, provider: unknown, dealId: string, grounds: string) {
+  return writeAndWait(account, provider, requireAddress(), "appeal", [dealId, grounds]);
+}
+
+/** The second, independent round. Its verdict is final and is paid in this call. */
+export async function adjudicateAppeal(account: Address, provider: unknown, dealId: string) {
+  return writeAndWait(account, provider, requireAddress(), "adjudicate_appeal", [dealId]);
+}
+
+/** Pay a ruling nobody appealed, once the appeal window has closed. */
+export async function settle(account: Address, provider: unknown, dealId: string) {
+  return writeAndWait(account, provider, requireAddress(), "settle", [dealId]);
 }

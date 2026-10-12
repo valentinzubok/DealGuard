@@ -45,10 +45,14 @@ def test_reject_non_bool_condition_met():
 
 def test_code_snapshot_file_consistent():
     path = ROOT / "CODE_SNAPSHOT.json"
-    assert path.exists(), "CODE_SNAPSHOT.json missing — run scripts/update_code_snapshot.py update"
+    assert (
+        path.exists()
+    ), "CODE_SNAPSHOT.json missing — run scripts/update_code_snapshot.py update"
     pinned = json.loads(path.read_text())
     assert pinned["evidence_hash"] == snap.sha256_text(pinned["commit"])
-    live_contract = snap.sha256_bytes((ROOT / "contracts" / "DealGuard.py").read_bytes())
+    live_contract = snap.sha256_bytes(
+        (ROOT / "contracts" / "DealGuard.py").read_bytes()
+    )
     assert pinned["contract_hash"] == live_contract
 
 

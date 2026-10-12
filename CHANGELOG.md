@@ -2,6 +2,19 @@
 
 All notable product and pin changes. On-chain integrity is anchored by [`CODE_SNAPSHOT.json`](CODE_SNAPSHOT.json) + `pin_code_snapshot` (see [`DEPLOY.md`](DEPLOY.md)).
 
+## [0.5.0] — 2026-10-12 · v3: a verdict is a ruling, not a payment
+
+| Area | Change |
+|------|--------|
+| Contract | `adjudicate` records a ruling and opens an appeal window; it no longer pays. Deployed → `0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85` |
+| Contract | `appeal(deal_id, grounds)`: only the side the ruling went against, once, inside `appeal_window` |
+| Contract | `adjudicate_appeal(deal_id)`: a second independent consensus round; final and paid in the same call |
+| Contract | `settle(deal_id)`: anyone, once the window has closed with no appeal |
+| Contract | `create_deal` takes `appeal_window` (60 s – 30 d), fixed at creation |
+| Views | `get_schedule` adds `can_appeal`, `can_settle`, `can_adjudicate_appeal`, `appeal_until`, `ruling_pay` |
+| Tests | 86 tests; `tests/test_appeal.py` adds 32 |
+| App | `/console/` shows a ruling as not yet paid, with appeal, second round and settle |
+
 ## [0.4.0] — 2026-10-10 · v2: the escrow holds native GEN
 
 | Area | Change |

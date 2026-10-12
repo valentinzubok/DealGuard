@@ -8,15 +8,20 @@ import json
 import re
 from datetime import datetime, timezone
 
-# DealGuard v2 — agentic commerce escrow that holds real GEN.
+# DealGuard v3 — agentic commerce escrow that holds real GEN, with an appeal before any
+# verdict moves it.
 # Copyright (c) 2026 Valentyn Zubok. MIT License.
 # Runtime: GenVM v0.3.0 — Studio Next / studio-dev (chain 61997).
 #
 # Lifecycle:
 #   create_deal (freeze listings) → fund [payable: the client's GEN enters escrow]
 #   → submit_delivery (freeze) → release (client accepts: provider is paid)
-#                              | dispute → adjudicate (consensus on FROZEN evidence:
-#                                          provider is paid, or the client is refunded)
+#                              | dispute → adjudicate (consensus on FROZEN evidence: a RULING,
+#                                          not a payment)
+#                                  → appeal (the side the ruling went against, inside the
+#                                            committed appeal window) → adjudicate_appeal
+#                                            (a second, independent consensus round: final)
+#                                  → settle (no appeal by the deadline: the ruling is paid)
 #   → reclaim (no delivery by the committed deadline: the client is refunded)
 #   → cross_check (prove URL rot / tamper)
 #   → pin_code_snapshot / store_evidence (integrity pins + deal proofs)
@@ -43,6 +48,7 @@ from datetime import datetime, timezone
 MAX_ID_LEN = 64
 MAX_TERMS_LEN = 1500
 MAX_CLAIM_LEN = 800
+MAX_GROUNDS_LEN = 800
 MAX_URLS = 6
 MAX_AMOUNT = 10**24  # wei: 1,000,000 GEN per deal
 PREVIEW_CHARS = 280
@@ -64,6 +70,8 @@ STATUS_FUNDED = "funded"
 STATUS_DELIVERED = "delivered"
 STATUS_COMPLETED = "completed"
 STATUS_DISPUTED = "disputed"
+STATUS_RULED = "ruled"
+STATUS_APPEALED = "appealed"
 STATUS_SETTLED_PAY = "settled_pay"
 STATUS_SETTLED_REFUND = "settled_refund"
 STATUS_RECLAIMED = "reclaimed"
@@ -194,7 +202,9 @@ def build_digest(normalized: str, anchor_text: str) -> dict:
     doc = normalized
     total = len(doc)
     if total <= EVIDENCE_BUDGET_CHARS:
-        excerpts = [{"from_char": 0, "match": "whole_document", "text": doc}] if doc else []
+        excerpts = (
+            [{"from_char": 0, "match": "whole_document", "text": doc}] if doc else []
+        )
         return {
             "excerpts": excerpts,
             "excerpt_chars": total,
@@ -384,13 +394,20 @@ def _evidence_view(items: list, budget: int) -> list:
             text = str(excerpt.get("text", ""))[: budget - used]
             if text:
                 used += len(text)
-                row["excerpts"].append({"from_char": excerpt.get("from_char", 0), "text": text})
+                row["excerpts"].append(
+                    {"from_char": excerpt.get("from_char", 0), "text": text}
+                )
         view.append(row)
     return view
 
 
 def build_judge_prompt(
-    terms: str, claim: str, listing_items: list, delivery_items: list, flags: list
+    terms: str,
+    claim: str,
+    listing_items: list,
+    delivery_items: list,
+    flags: list,
+    grounds: str = "",
 ) -> str:
     half = PROMPT_EVIDENCE_CHARS // 2
     listing = _evidence_view(listing_items, half)
@@ -424,6 +441,14 @@ def build_judge_prompt(
         "FROZEN DELIVERY EVIDENCE (untrusted, captured when the provider submitted delivery)",
         quote_untrusted(json.dumps(delivery, sort_keys=True, separators=(",", ":"))),
     ]
+    if grounds:
+        parts += [
+            "",
+            "APPEAL GROUNDS (untrusted). This is a second, independent review. One party "
+            "appealed an earlier ruling and argues as follows. It is an argument, not "
+            "evidence: decide again from the frozen excerpts, as if no ruling had been made.",
+            quote_untrusted(grounds),
+        ]
     if flags:
         parts += [
             "",
@@ -440,14 +465,23 @@ def build_judge_prompt(
 
 
 def judge_deal(
-    terms: str, claim: str, listing_items: list, delivery_items: list, flags: list
+    terms: str,
+    claim: str,
+    listing_items: list,
+    delivery_items: list,
+    flags: list,
+    grounds: str = "",
 ) -> str:
     """Leader answer: a strict verdict string, or "invalid" if the model misbehaved."""
-    prompt = build_judge_prompt(terms, claim, listing_items, delivery_items, flags)
+    prompt = build_judge_prompt(
+        terms, claim, listing_items, delivery_items, flags, grounds
+    )
     try:
         result = gl.nondet.exec_prompt(prompt, response_format="json")
     except Exception:
-        return json.dumps({"verdict": "invalid", "why": "prompt_failed"}, sort_keys=True)
+        return json.dumps(
+            {"verdict": "invalid", "why": "prompt_failed"}, sort_keys=True
+        )
     if isinstance(result, str):
         try:
             result = json.loads(result)
@@ -462,7 +496,12 @@ def judge_deal(
 
 
 def decide_deal(
-    terms: str, claim: str, listing_items: list, delivery_items: list, flags: list
+    terms: str,
+    claim: str,
+    listing_items: list,
+    delivery_items: list,
+    flags: list,
+    grounds: str = "",
 ) -> bool:
     """True = pay the provider, False = refund the client. No fallback.
 
@@ -471,7 +510,7 @@ def decide_deal(
     """
 
     def leader_fn() -> str:
-        return judge_deal(terms, claim, listing_items, delivery_items, flags)
+        return judge_deal(terms, claim, listing_items, delivery_items, flags, grounds)
 
     # `principle` is positional-only in GenVM v0.3. Passed by keyword it raises TypeError,
     # which v1 caught and turned into a silent strict_eq fallback.
@@ -481,7 +520,9 @@ def decide_deal(
         '"pay" or "refund".',
     )
     try:
-        verdict = json.loads(verdict_json) if isinstance(verdict_json, str) else verdict_json
+        verdict = (
+            json.loads(verdict_json) if isinstance(verdict_json, str) else verdict_json
+        )
     except Exception:
         verdict = None
     if not isinstance(verdict, dict):
@@ -760,7 +801,9 @@ class DealGuard(gl.contract.Contract):
             "hash_algo": HASH_ALGO,
             "pinned_by": str(gl.message.sender_address),
         }
-        self.code_snapshot_json = json.dumps(snap, sort_keys=True, separators=(",", ":"))
+        self.code_snapshot_json = json.dumps(
+            snap, sort_keys=True, separators=(",", ":")
+        )
         self._append_event("CodeSnapshotPinned", {"commit": c, "evidence_hash": eh})
 
     # ── deals ─────────────────────────────────────────────────────────────────
@@ -782,7 +825,9 @@ class DealGuard(gl.contract.Contract):
             "deal_id": did,
             "submitter": caller,
         }
-        self.evidences_json = json.dumps(evidences, sort_keys=True, separators=(",", ":"))
+        self.evidences_json = json.dumps(
+            evidences, sort_keys=True, separators=(",", ":")
+        )
         deal["evidence_payload_hash"] = parsed["payload_hash"]
         deal["condition_met"] = parsed["condition_met"]
         deals[did] = deal
@@ -806,13 +851,15 @@ class DealGuard(gl.contract.Contract):
         listing_urls_json: str,
         amount: str,
         delivery_window: str = "86400",
+        appeal_window: str = "3600",
     ) -> None:
         """Client opens a deal and freezes the listing URLs under SHA-256 consensus.
 
         amount is the price in wei of native GEN; fund() must carry exactly that.
         delivery_window is how many seconds the provider has, counted from funding, to
-        submit delivery. After that the client may reclaim() the escrow. Both are fixed
-        here and have no setter.
+        submit delivery. After that the client may reclaim() the escrow. appeal_window is
+        how many seconds the side an adjudication went against has to appeal before the
+        ruling can be paid. All three are fixed here and have no setter.
         """
         did = _normalize_id(deal_id)
         deals = self._load_deals()
@@ -826,6 +873,7 @@ class DealGuard(gl.contract.Contract):
         terms_txt = _sanitize_text("terms", terms, MAX_TERMS_LEN)
         amt = _parse_amount(amount)
         window = parse_window("delivery_window", delivery_window)
+        appeal_secs = parse_window("appeal_window", appeal_window)
         urls = _parse_urls(listing_urls_json)
         items = _freeze_urls(urls, terms_txt)
         now = now_seconds()
@@ -837,6 +885,13 @@ class DealGuard(gl.contract.Contract):
             "terms": terms_txt,
             "amount": str(amt),
             "delivery_window": window,
+            "appeal_window": appeal_secs,
+            "ruling_pay": False,
+            "ruled_at": 0,
+            "appeal_until": 0,
+            "appellant": "",
+            "grounds": "",
+            "rounds": 0,
             "status": STATUS_OPEN,
             "escrow": "0",
             "created_at": now,
@@ -895,7 +950,12 @@ class DealGuard(gl.contract.Contract):
                 raise Exception(reason)
             self._credit(caller, value)
             return json.dumps(
-                {"funded": False, "escrowed": "0", "credited": str(value), "reason": reason},
+                {
+                    "funded": False,
+                    "escrowed": "0",
+                    "credited": str(value),
+                    "reason": reason,
+                },
                 sort_keys=True,
                 separators=(",", ":"),
             )
@@ -914,7 +974,9 @@ class DealGuard(gl.contract.Contract):
             return refuse("only client may fund")
         amount = int(deal["amount"])
         if value < amount:
-            return refuse("fund needs the deal amount of " + str(amount) + " wei as value")
+            return refuse(
+                "fund needs the deal amount of " + str(amount) + " wei as value"
+            )
 
         excess = value - amount
         now = now_seconds()
@@ -981,7 +1043,9 @@ class DealGuard(gl.contract.Contract):
         deal["status"] = STATUS_DELIVERED
         deals[did] = deal
         self._save_deals(deals)
-        self._append_event("DeliverySubmitted", {"id": did, "provider": caller, "at": now})
+        self._append_event(
+            "DeliverySubmitted", {"id": did, "provider": caller, "at": now}
+        )
 
     @gl.public.write
     def reclaim(self, deal_id: str) -> str:
@@ -1000,7 +1064,9 @@ class DealGuard(gl.contract.Contract):
         now = now_seconds()
         due = int(deal.get("delivery_due_at", 0))
         if now < due:
-            raise Exception("the delivery deadline has not passed; reclaim opens at " + str(due))
+            raise Exception(
+                "the delivery deadline has not passed; reclaim opens at " + str(due)
+            )
 
         amount = self._take_escrow(deal, caller)
         deal["status"] = STATUS_RECLAIMED
@@ -1009,7 +1075,9 @@ class DealGuard(gl.contract.Contract):
         deals[did] = deal
         self._save_deals(deals)
         self._bump_rep(deal["client"], deal["provider"], False, False)
-        self._append_event("DealReclaimed", {"id": did, "amount": str(amount), "at": now})
+        self._append_event(
+            "DealReclaimed", {"id": did, "amount": str(amount), "at": now}
+        )
         pay_wallet(caller, amount)
         return str(amount)
 
@@ -1033,7 +1101,8 @@ class DealGuard(gl.contract.Contract):
         self._save_deals(deals)
         self._bump_rep(deal["client"], provider, True, False)
         self._append_event(
-            "DealReleased", {"id": did, "caller": caller, "amount": str(amount), "to": provider}
+            "DealReleased",
+            {"id": did, "caller": caller, "amount": str(amount), "to": provider},
         )
         pay_wallet(provider, amount)
         return str(amount)
@@ -1055,22 +1124,10 @@ class DealGuard(gl.contract.Contract):
         self._save_deals(deals)
         self._append_event("DealDisputed", {"id": did, "caller": caller})
 
-    @gl.public.write
-    def adjudicate(self, deal_id: str) -> str:
-        """Validators judge the FROZEN listing and delivery against the terms, and the
-        escrow follows the verdict: paid to the provider, or refunded to the client.
-
-        Anyone may call it; it takes a deal id and nothing else. The verdict is one literal
-        boolean under prompt_comparative. A malformed answer, a model error or a consensus
-        failure reverts: nothing is paid and the deal stays as it was.
-        """
-        did, deals = self._deal_or_raise(deal_id)
-        deal = deals[did]
-        if deal.get("status") not in (STATUS_DISPUTED, STATUS_DELIVERED):
-            raise Exception("deal must be delivered or disputed")
+    def _judge(self, deal: dict, grounds: str = "") -> bool:
+        """One consensus round over the FROZEN evidence. Reverts on anything unexpected."""
         if not deal.get("delivery_items"):
             raise Exception("no delivery snapshot")
-
         terms = deal.get("terms", "")
         claim = deal.get("claim", "")
         listing_items = deal.get("listing_items", [])
@@ -1078,25 +1135,36 @@ class DealGuard(gl.contract.Contract):
         flags = injection_flags(
             terms,
             claim,
-            json.dumps(_evidence_view(listing_items, PROMPT_EVIDENCE_CHARS), separators=(",", ":")),
+            grounds,
             json.dumps(
-                _evidence_view(delivery_items, PROMPT_EVIDENCE_CHARS), separators=(",", ":")
+                _evidence_view(listing_items, PROMPT_EVIDENCE_CHARS),
+                separators=(",", ":"),
+            ),
+            json.dumps(
+                _evidence_view(delivery_items, PROMPT_EVIDENCE_CHARS),
+                separators=(",", ":"),
             ),
         )
-        pay = decide_deal(terms, claim, listing_items, delivery_items, flags)
+        pay = decide_deal(terms, claim, listing_items, delivery_items, flags, grounds)
+        deal["injection_flags"] = flags[:6]
+        deal["rounds"] = int(deal.get("rounds", 0)) + 1
+        return pay
 
+    def _pay_ruling(
+        self, did: str, deals: dict, pay: bool, outcome: str, kind: str
+    ) -> str:
+        """Close the deal on a ruling: books first, then the one transfer."""
+        deal = deals[did]
         recipient = deal["provider"] if pay else deal["client"]
         amount = self._take_escrow(deal, recipient)
-        deal["injection_flags"] = flags[:6]
         deal["pay_provider"] = pay
-        deal["outcome"] = "adjudicate_pay" if pay else "adjudicate_refund"
+        deal["outcome"] = outcome
         deal["status"] = STATUS_SETTLED_PAY if pay else STATUS_SETTLED_REFUND
-        disputed = bool(deal.get("claim"))
         deals[did] = deal
         self._save_deals(deals)
-        self._bump_rep(deal["client"], deal["provider"], pay, disputed)
+        self._bump_rep(deal["client"], deal["provider"], pay, bool(deal.get("claim")))
         self._append_event(
-            "DealAdjudicated",
+            kind,
             {
                 "id": did,
                 "pay_provider": pay,
@@ -1108,9 +1176,113 @@ class DealGuard(gl.contract.Contract):
         )
         pay_wallet(recipient, amount)
         return json.dumps(
-            {"pay_provider": pay, "amount": str(amount), "to": recipient},
+            {
+                "pay_provider": pay,
+                "amount": str(amount),
+                "to": recipient,
+                "final": True,
+            },
             sort_keys=True,
             separators=(",", ":"),
+        )
+
+    @gl.public.write
+    def adjudicate(self, deal_id: str) -> str:
+        """Validators judge the FROZEN listing and delivery against the terms.
+
+        The result is a RULING, not a payment. It can be paid only after the committed
+        appeal window has passed with no appeal (settle), so one consensus round can never
+        move the escrow on its own. Anyone may call this; it takes a deal id and nothing
+        else. A malformed answer, a model error or a consensus failure reverts: no ruling
+        is recorded and the deal stays as it was.
+        """
+        did, deals = self._deal_or_raise(deal_id)
+        deal = deals[did]
+        if deal.get("status") not in (STATUS_DISPUTED, STATUS_DELIVERED):
+            raise Exception("deal must be delivered or disputed")
+        pay = self._judge(deal)
+
+        now = now_seconds()
+        deal["ruling_pay"] = pay
+        deal["ruled_at"] = now
+        deal["appeal_until"] = now + int(deal.get("appeal_window", 3600))
+        deal["status"] = STATUS_RULED
+        deals[did] = deal
+        self._save_deals(deals)
+        self._append_event(
+            "DealRuled",
+            {
+                "id": did,
+                "pay_provider": pay,
+                "appeal_until": deal["appeal_until"],
+                "caller": str(gl.message.sender_address),
+            },
+        )
+        return json.dumps(
+            {"pay_provider": pay, "final": False, "appeal_until": deal["appeal_until"]},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    @gl.public.write
+    def appeal(self, deal_id: str, grounds: str) -> None:
+        """The side the ruling went against asks for a second round. Once, and only
+        while the appeal window is open."""
+        did, deals = self._deal_or_raise(deal_id)
+        deal = deals[did]
+        if deal.get("status") != STATUS_RULED:
+            raise Exception("only a ruled deal can be appealed")
+        caller = str(gl.message.sender_address)
+        loser = deal["client"] if deal.get("ruling_pay") else deal["provider"]
+        if caller != loser:
+            raise Exception("only the party the ruling went against may appeal")
+        now = now_seconds()
+        if now >= int(deal.get("appeal_until", 0)):
+            raise Exception("the appeal window has closed")
+        deal["grounds"] = _sanitize_text("grounds", grounds, MAX_GROUNDS_LEN)
+        deal["appellant"] = caller
+        deal["status"] = STATUS_APPEALED
+        deals[did] = deal
+        self._save_deals(deals)
+        self._append_event("DealAppealed", {"id": did, "caller": caller, "at": now})
+
+    @gl.public.write
+    def adjudicate_appeal(self, deal_id: str) -> str:
+        """A second, independent consensus round over the same frozen evidence, with the
+        appeal grounds in view as an argument. Its verdict is final and is paid here.
+        Anyone may call it; it takes a deal id and nothing else."""
+        did, deals = self._deal_or_raise(deal_id)
+        deal = deals[did]
+        if deal.get("status") != STATUS_APPEALED:
+            raise Exception("this deal has no appeal to decide")
+        pay = self._judge(deal, deal.get("grounds", ""))
+        upheld = pay == bool(deal.get("ruling_pay"))
+        deal["appeal_result"] = "upheld" if upheld else "overturned"
+        outcome = ("appeal_pay" if pay else "appeal_refund") + (
+            "" if upheld else "_overturned"
+        )
+        return self._pay_ruling(did, deals, pay, outcome, "DealAppealDecided")
+
+    @gl.public.write
+    def settle(self, deal_id: str) -> str:
+        """Pay a ruling nobody appealed. Anyone may call it, and only once the committed
+        appeal window has fully elapsed since the ruling."""
+        did, deals = self._deal_or_raise(deal_id)
+        deal = deals[did]
+        if deal.get("status") != STATUS_RULED:
+            raise Exception("only a ruled deal with no appeal can be settled")
+        until = int(deal.get("appeal_until", 0))
+        if now_seconds() < until:
+            raise Exception(
+                "the appeal window is still open; settle opens at " + str(until)
+            )
+        pay = bool(deal.get("ruling_pay"))
+        return self._pay_ruling(
+            did,
+            deals,
+            pay,
+            "adjudicate_pay" if pay else "adjudicate_refund",
+            "DealAdjudicated",
         )
 
     @gl.public.write
@@ -1135,7 +1307,8 @@ class DealGuard(gl.contract.Contract):
                     match = (
                         item.get("status") == prev.get("status")
                         and item.get("content_hash") == prev.get("content_hash")
-                        and item.get("hash_algo", HASH_ALGO) == prev.get("hash_algo", HASH_ALGO)
+                        and item.get("hash_algo", HASH_ALGO)
+                        == prev.get("hash_algo", HASH_ALGO)
                     )
                     if not match:
                         all_match = False
@@ -1157,8 +1330,12 @@ class DealGuard(gl.contract.Contract):
             check = json.loads(check_json)
             return literal_bool(check.get("all_match")) is True
 
-        listing_ok = compare_set(deal.get("listing_urls", []), deal.get("listing_items", []))
-        delivery_ok = compare_set(deal.get("delivery_urls", []), deal.get("delivery_items", []))
+        listing_ok = compare_set(
+            deal.get("listing_urls", []), deal.get("listing_items", [])
+        )
+        delivery_ok = compare_set(
+            deal.get("delivery_urls", []), deal.get("delivery_items", [])
+        )
         if not listing_ok:
             deal["tampered_listing"] = True
         if not delivery_ok:
@@ -1210,6 +1387,15 @@ class DealGuard(gl.contract.Contract):
                 "can_release": status == STATUS_DELIVERED,
                 "can_dispute": status == STATUS_DELIVERED,
                 "can_adjudicate": status in (STATUS_DELIVERED, STATUS_DISPUTED),
+                "appeal_until": int(deal.get("appeal_until", 0)),
+                "ruling_pay": bool(deal.get("ruling_pay", False)),
+                "can_appeal": bool(
+                    status == STATUS_RULED and now < int(deal.get("appeal_until", 0))
+                ),
+                "can_settle": bool(
+                    status == STATUS_RULED and now >= int(deal.get("appeal_until", 0))
+                ),
+                "can_adjudicate_appeal": status == STATUS_APPEALED,
             },
             sort_keys=True,
             separators=(",", ":"),

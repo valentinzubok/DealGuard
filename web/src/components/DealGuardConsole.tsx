@@ -14,6 +14,9 @@ import {
 } from "@/lib/config";
 import {
   adjudicate,
+  adjudicateAppeal,
+  appeal,
+  settle,
   createDeal,
   dispute,
   fund,
@@ -91,6 +94,8 @@ export function DealGuardConsole() {
   const [terms, setTerms] = useState("Deliver a page that contains the word Hello and the delivered report");
   const [amount, setAmount] = useState("1");
   const [deliveryWindow, setDeliveryWindow] = useState("600");
+  const [appealWindow, setAppealWindow] = useState("120");
+  const [grounds, setGrounds] = useState("The frozen delivery does contain what the terms ask for");
   const [listingUrl, setListingUrl] = useState(DEMO_URL);
   const [deliveryUrl, setDeliveryUrl] = useState(DEMO_URL);
   const [claim, setClaim] = useState("Delivered page does not match the listing");
@@ -268,6 +273,15 @@ export function DealGuardConsole() {
                   .slice(0, 16)} UTC`}
               {r.status.startsWith("settled") &&
                 ` · verdict pay_provider=${String(r.pay_provider)}`}
+              {(r.status === "ruled" || r.status === "appealed") &&
+                ` · RULING pay_provider=${String(r.ruling_pay)}, not paid yet · appeal until ${new Date(
+                  (r.appeal_until || 0) * 1000,
+                )
+                  .toISOString()
+                  .replace("T", " ")
+                  .slice(0, 16)} UTC`}
+              {r.status === "appealed" && ` · appealed by ${short(r.appellant || "")}`}
+              {r.appeal_result && ` · appeal ${r.appeal_result}`}
               <Frozen label="listing frozen" items={r.listing_items} />
               <Frozen label="delivery frozen" items={r.delivery_items} />
             </li>
@@ -301,6 +315,10 @@ export function DealGuardConsole() {
           delivery window (seconds from funding)
           <input value={deliveryWindow} onChange={(e) => setDeliveryWindow(e.target.value)} />
         </label>
+        <label>
+          appeal window, seconds a ruling waits before it can be paid (60 – 2592000)
+          <input value={appealWindow} onChange={(e) => setAppealWindow(e.target.value)} />
+        </label>
         <p className="muted">
           fund sends the price as real GEN with the transaction and the contract holds it. It
           leaves only to the provider (you release, or validators rule for them) or back to you
@@ -322,6 +340,7 @@ export function DealGuardConsole() {
                   listingJson,
                   amountWei,
                   deliveryWindow,
+                  appealWindow,
                 ),
               )
             }
@@ -399,7 +418,48 @@ export function DealGuardConsole() {
             disabled={disabled}
             onClick={() => void run("adjudicate", () => adjudicate(acct, provider, dealId))}
           >
-            adjudicate (consensus on frozen evidence, escrow follows the verdict)
+            adjudicate (consensus on frozen evidence → a ruling, not a payment)
+          </button>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>4 · A ruling waits: appeal, or settle after the window</h2>
+        <p style={{ color: "var(--muted)" }}>
+          One consensus round never moves the escrow. The side the ruling went against can appeal
+          once while the window is open; a second, independent round then decides and pays. With
+          no appeal, anyone can settle once the window has closed.
+        </p>
+        <label>
+          appeal grounds (an argument for the second round, not evidence)
+          <input value={grounds} onChange={(e) => setGrounds(e.target.value)} />
+        </label>
+        <div className="row">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={disabled || !selected || selected.status !== "ruled"}
+            onClick={() => void run("appeal", () => appeal(acct, provider, dealId, grounds))}
+          >
+            appeal (losing side only)
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={disabled || !selected || selected.status !== "appealed"}
+            onClick={() =>
+              void run("adjudicate_appeal", () => adjudicateAppeal(acct, provider, dealId))
+            }
+          >
+            adjudicate_appeal (second round, final)
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={disabled || !selected || selected.status !== "ruled"}
+            onClick={() => void run("settle", () => settle(acct, provider, dealId))}
+          >
+            settle (after the appeal window)
           </button>
         </div>
       </section>

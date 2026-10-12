@@ -26,6 +26,13 @@ DAY = 86400
 D = "demo-1"
 
 
+def _adj(c, deal_id=D):
+    """Rule, let the appeal window pass with no appeal, and pay the ruling."""
+    c.adjudicate(deal_id)
+    advance(gl, 3601)
+    return c.settle(deal_id)
+
+
 @pytest.fixture(autouse=True)
 def _fresh():
     reset(gl)
@@ -69,7 +76,11 @@ def _sha_commit(commit: str) -> str:
 def test_create_deal_freezes_listing_and_commits_amount_and_window():
     c = _created()
     deal = _deal(c)
-    assert deal["status"] == "open" and deal["client"] == CLIENT and deal["provider"] == PROVIDER
+    assert (
+        deal["status"] == "open"
+        and deal["client"] == CLIENT
+        and deal["provider"] == PROVIDER
+    )
     assert deal["amount"] == str(GEN) and deal["delivery_window"] == DAY
     assert deal["escrow"] == "0"
     item = deal["listing_items"][0]
@@ -141,8 +152,13 @@ def test_dispute_then_adjudicate_pays_the_provider_when_validators_agree():
     assert _deal(c)["status"] == "disputed"
     gl.llm_reply = '{"pay_provider": true}'
     gl.message.sender_address = OTHER
-    out = json.loads(c.adjudicate(D))
-    assert out == {"pay_provider": True, "amount": str(GEN), "to": PROVIDER}
+    out = json.loads(_adj(c))
+    assert out == {
+        "pay_provider": True,
+        "amount": str(GEN),
+        "to": PROVIDER,
+        "final": True,
+    }
     deal = _deal(c)
     assert deal["status"] == "settled_pay" and deal["outcome"] == "adjudicate_pay"
     assert gl.transfers == [(PROVIDER, GEN)] and gl.balance == 0
@@ -154,8 +170,13 @@ def test_adjudicate_refunds_the_client_when_validators_say_no():
     gl.message.sender_address = PROVIDER
     c.dispute(D, "The client refuses to release")
     gl.llm_reply = '{"pay_provider": false}'
-    out = json.loads(c.adjudicate(D))
-    assert out == {"pay_provider": False, "amount": str(GEN), "to": CLIENT}
+    out = json.loads(_adj(c))
+    assert out == {
+        "pay_provider": False,
+        "amount": str(GEN),
+        "to": CLIENT,
+        "final": True,
+    }
     assert _deal(c)["status"] == "settled_refund"
     assert gl.transfers == [(CLIENT, GEN)] and gl.balance == 0
 
@@ -176,7 +197,9 @@ def test_pin_code_snapshot_only_owner():
     commit = "a" * 40
     gl.message.sender_address = OTHER
     with pytest.raises(Exception, match="only owner"):
-        c.pin_code_snapshot(commit, _sha_commit(commit), "b" * 64, "2026-10-09T00:00:00Z")
+        c.pin_code_snapshot(
+            commit, _sha_commit(commit), "b" * 64, "2026-10-09T00:00:00Z"
+        )
     gl.message.sender_address = OWNER
     with pytest.raises(Exception, match="must equal sha256"):
         c.pin_code_snapshot(commit, "c" * 64, "b" * 64, "2026-10-09T00:00:00Z")
@@ -227,7 +250,11 @@ def test_the_schedule_view_says_which_step_is_accepted():
     gl.message.sender_address = CLIENT
     pay(gl, c.fund, GEN, D)
     s = json.loads(c.get_schedule(D))
-    assert s["can_deliver"] is True and s["can_reclaim"] is False and s["escrow"] == str(GEN)
+    assert (
+        s["can_deliver"] is True
+        and s["can_reclaim"] is False
+        and s["escrow"] == str(GEN)
+    )
     advance(gl, DAY)
     s = json.loads(c.get_schedule(D))
     assert s["can_deliver"] is False and s["can_reclaim"] is True
