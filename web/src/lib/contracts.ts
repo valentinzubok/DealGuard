@@ -35,11 +35,29 @@ export type DealRow = {
   grounds?: string;
   appeal_result?: string;
   outcome?: string;
+  /** v4: committed at creation; the review deadline is set when the delivery is frozen. */
+  review_window?: number;
+  review_deadline?: number;
+  rounds?: number;
 };
 
-export async function listDeals(): Promise<string[]> {
-  const raw = await readContract<string>(requireAddress(), "list_deals", []);
-  return parseJson<string[]>(raw, []);
+export const PAGE_SIZE = 20;
+
+/**
+ * The newest `count` deal ids, read as one page of the paged index (v4). The console never
+ * reads the whole registry; `total` says how many exist so it can offer "load older".
+ */
+export async function listDeals(count = PAGE_SIZE): Promise<{ ids: string[]; total: number }> {
+  const head = parseJson<{ total: number }>(
+    await readContract<string>(requireAddress(), "list_deals", [0, 1]),
+    { total: 0 },
+  );
+  const start = Math.max(0, head.total - count);
+  const page = parseJson<{ items: [string, string][] }>(
+    await readContract<string>(requireAddress(), "list_deals", [start, count]),
+    { items: [] },
+  );
+  return { ids: page.items.map((x) => x[0]), total: head.total };
 }
 
 export async function getDeal(id: string): Promise<DealRow | null> {
@@ -84,6 +102,9 @@ export type Schedule = {
   can_appeal: boolean;
   can_settle: boolean;
   can_adjudicate_appeal: boolean;
+  /** v4: release, dispute and both adjudications work before it; expire_review from it. */
+  review_deadline: number;
+  can_expire_review: boolean;
 };
 
 export async function getSchedule(id: string): Promise<Schedule | null> {
@@ -172,6 +193,11 @@ export async function adjudicateAppeal(account: Address, provider: unknown, deal
 }
 
 /** Pay a ruling nobody appealed, once the appeal window has closed. */
+/** v4: no ruling by the committed review deadline. Refunds the client (or keeps a ruling that was appealed). */
+export async function expireReview(account: Address, provider: unknown, dealId: string) {
+  return writeAndWait(account, provider, requireAddress(), "expire_review", [dealId]);
+}
+
 export async function settle(account: Address, provider: unknown, dealId: string) {
   return writeAndWait(account, provider, requireAddress(), "settle", [dealId]);
 }

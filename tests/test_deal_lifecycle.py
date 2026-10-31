@@ -86,7 +86,7 @@ def test_create_deal_freezes_listing_and_commits_amount_and_window():
     item = deal["listing_items"][0]
     assert item["status"] == "ok" and len(item["content_hash"]) == 64
     assert item["excerpts"][0]["text"] == "Hello world! GenLayer fixture page"
-    assert D in json.loads(c.list_deals())
+    assert D in [i[0] for i in json.loads(c.list_deals(0, 50))["items"]]
 
 
 def test_create_deal_validation():

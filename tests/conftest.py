@@ -45,12 +45,42 @@ def _install_fake_genlayer() -> None:
         def view(fn):
             return fn
 
+    class TreeMap(dict):
+        """`genlayer.storage.TreeMap`: a persistent map. `TreeMap[str, str]` is the class."""
+
+        def __class_getitem__(cls, item):
+            return cls
+
+    class DynArray(list):
+        """`genlayer.storage.DynArray`: a persistent list."""
+
+        def __class_getitem__(cls, item):
+            return cls
+
     class _Contract:
-        """Base class: a contract can read its own balance."""
+        """Base class: a contract can read its own balance. Typed storage fields start empty,
+        as they do in GenVM."""
+
+        def __new__(cls, *args, **kwargs):
+            obj = super().__new__(cls)
+            for name, kind in getattr(cls, "__annotations__", {}).items():
+                label = kind if isinstance(kind, str) else getattr(kind, "__name__", "")
+                if label.startswith("TreeMap"):
+                    setattr(obj, name, TreeMap())
+                elif label.startswith("DynArray"):
+                    setattr(obj, name, DynArray())
+            return obj
 
         @property
         def balance(self):
             return gl.balance
+
+    class UserError(Exception):
+        """`gl.vm.UserError`: the error a contract raises on purpose."""
+
+        def __init__(self, message=""):
+            super().__init__(message)
+            self.message = message
 
     class _WalletProxy:
         def __init__(self, address):
@@ -96,6 +126,14 @@ def _install_fake_genlayer() -> None:
         return reply
 
     gl.contract = types.SimpleNamespace(Contract=_Contract)
+    gl.Contract = _Contract
+    gl.vm = types.SimpleNamespace(UserError=UserError)
+    gl.gl = gl
+    gl_storage = types.ModuleType("genlayer.storage")
+    gl_storage.TreeMap = TreeMap
+    gl_storage.DynArray = DynArray
+    gl.storage = gl_storage
+    sys.modules["genlayer.storage"] = gl_storage
     gl.public = _Public()
     gl.evm = types.SimpleNamespace(contract_interface=_evm_interface)
     gl.message = types.SimpleNamespace(

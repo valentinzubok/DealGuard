@@ -99,8 +99,18 @@ def _deal(c, deal_id=D):
     return json.loads(c.get_deal(deal_id))
 
 
+def _ids(c):
+    ids, offset = [], 0
+    while True:
+        page = json.loads(c.list_deals(offset, 50))
+        ids += [item[0] for item in page["items"]]
+        offset += 50
+        if offset >= page["total"]:
+            return ids
+
+
 def _owed(c):
-    owed = sum(int(_deal(c, d)["escrow"]) for d in json.loads(c.list_deals()))
+    owed = sum(int(_deal(c, d)["escrow"]) for d in _ids(c))
     return owed + sum(
         int(c.get_credit(who)) for who in (OWNER, CLIENT, PROVIDER, OTHER)
     )

@@ -1,15 +1,17 @@
 # v0.3.0
-# { "Depends": "py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng" }
+# { "Depends": "py-genlayer:babwp9t37jw9g4j2bccgn14g6x7x9s1f7dsmh7emvz735pz4zxa0" }
 
 import genlayer as gl
 from genlayer.types import Address
+from genlayer.storage import TreeMap, DynArray
 import hashlib
 import json
 import re
 from datetime import datetime, timezone
 
-# DealGuard v3 — agentic commerce escrow that holds real GEN, with an appeal before any
-# verdict moves it.
+# DealGuard v4 — agentic commerce escrow that holds real GEN, with an appeal before any
+# verdict moves it, a review deadline that splits time in two, and refunds that never rest on a
+# partial reading.
 # Copyright (c) 2026 Valentyn Zubok. MIT License.
 # Runtime: GenVM v0.3.0 — Studio Next / studio-dev (chain 61997).
 #
@@ -23,6 +25,8 @@ from datetime import datetime, timezone
 #                                            (a second, independent consensus round: final)
 #                                  → settle (no appeal by the deadline: the ruling is paid)
 #   → reclaim (no delivery by the committed deadline: the client is refunded)
+#   → expire_review (no ruling by the committed review deadline: the client is refunded, or an
+#                    appealed ruling stands)
 #   → cross_check (prove URL rot / tamper)
 #   → pin_code_snapshot / store_evidence (integrity pins + deal proofs)
 #
@@ -42,6 +46,17 @@ from datetime import datetime, timezone
 # prompt_comparative, accepts only a literal JSON boolean, and has no fallback: a malformed
 # answer or a consensus failure reverts and the escrow stays where it is.
 #
+# v4 in four lines:
+#   * REVIEW DEADLINE. release, dispute, adjudicate and adjudicate_appeal are accepted only
+#     BEFORE it; expire_review only AT or after it. The schedule never offers both.
+#   * NO REFUND FROM A PARTIAL READING. If the judge saw only part of a readable delivery page
+#     and answers "refund", the round is inconclusive and moves nothing. A payment decided from
+#     the excerpts it did see still counts: positive evidence is concrete.
+#   * EVERY ROUND IS KEPT (get_round): kind, time, what the model said, the verdict, whether the
+#     reading was complete, the hashes and characters of what was read.
+#   * NO CAP. Deals, credits, reputation, evidence and events live in TreeMaps with a DynArray
+#     index; list_deals and get_events are paged; get_stats is a running counter.
+#
 # The owner's remaining powers are pin_code_snapshot and transfer_ownership. Neither
 # touches a deal or the escrow.
 
@@ -53,7 +68,10 @@ MAX_URLS = 6
 MAX_AMOUNT = 10**24  # wei: 1,000,000 GEN per deal
 PREVIEW_CHARS = 280
 HASH_ALGO = "sha256"
-MAX_EVENTS = 200
+MAX_PAGE = 50
+MIN_REVIEW_SECONDS = 120
+MAX_REVIEW_SECONDS = 2_592_000  # 30 days
+DEFAULT_REVIEW_SECONDS = 604_800  # 7 days
 
 # Evidence kept on chain per frozen URL, and what one adjudication may read in total.
 EVIDENCE_BUDGET_CHARS = 1200
@@ -75,6 +93,11 @@ STATUS_APPEALED = "appealed"
 STATUS_SETTLED_PAY = "settled_pay"
 STATUS_SETTLED_REFUND = "settled_refund"
 STATUS_RECLAIMED = "reclaimed"
+STATUS_SETTLED_EXPIRED = "settled_expired"
+
+VERDICT_PAY = "pay"
+VERDICT_REFUND = "refund"
+VERDICT_INCONCLUSIVE = "inconclusive"
 
 ADDR_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 HTTPS_URL_RE = re.compile(r"^https://[^\s<>\"']+$", re.IGNORECASE)
@@ -105,20 +128,20 @@ INJECTION_MARKERS = (
 def _normalize_id(deal_id: str) -> str:
     did = str(deal_id).strip()
     if not did:
-        raise Exception("deal_id is required")
+        raise gl.vm.UserError("deal_id is required")
     if len(did) > MAX_ID_LEN:
-        raise Exception("deal_id exceeds 64 chars")
+        raise gl.vm.UserError("deal_id exceeds 64 chars")
     for ch in did:
         ok = ("a" <= ch.lower() <= "z") or ("0" <= ch <= "9") or ch in "-_/"
         if not ok:
-            raise Exception("deal_id: only a-z, 0-9, -, _, /")
+            raise gl.vm.UserError("deal_id: only a-z, 0-9, -, _, /")
     return did
 
 
 def _require_address(label: str, value: str) -> str:
     addr = str(value).strip()
     if not ADDR_RE.match(addr):
-        raise Exception(f"{label} must be a 0x address")
+        raise gl.vm.UserError(f"{label} must be a 0x address")
     return addr
 
 
@@ -126,20 +149,20 @@ def _parse_amount(amount) -> int:
     try:
         amt = int(str(amount).strip())
     except Exception:
-        raise Exception("amount must be a positive integer number of wei")
+        raise gl.vm.UserError("amount must be a positive integer number of wei")
     if amt <= 0:
-        raise Exception("amount must be positive")
+        raise gl.vm.UserError("amount must be positive")
     if amt > MAX_AMOUNT:
-        raise Exception("amount exceeds max")
+        raise gl.vm.UserError("amount exceeds max")
     return amt
 
 
 def _sanitize_text(label: str, text: str, max_len: int) -> str:
     cleaned = " ".join(str(text).split())
     if not cleaned:
-        raise Exception(f"{label} is required")
+        raise gl.vm.UserError(f"{label} is required")
     if len(cleaned) > max_len:
-        raise Exception(f"{label} exceeds {max_len} chars")
+        raise gl.vm.UserError(f"{label} exceeds {max_len} chars")
     return cleaned
 
 
@@ -155,17 +178,17 @@ def _parse_urls(urls_json: str) -> list:
     try:
         parsed = json.loads(urls_json)
     except Exception:
-        raise Exception("urls_json must be a JSON array of https URL strings")
+        raise gl.vm.UserError("urls_json must be a JSON array of https URL strings")
     if not isinstance(parsed, list) or len(parsed) == 0:
-        raise Exception("provide at least one URL")
+        raise gl.vm.UserError("provide at least one URL")
     if len(parsed) > MAX_URLS:
-        raise Exception(f"max {MAX_URLS} URLs")
+        raise gl.vm.UserError(f"max {MAX_URLS} URLs")
     urls = []
     for u in parsed:
         if not isinstance(u, str) or not HTTPS_URL_RE.match(u.strip()):
-            raise Exception("each URL must be https:// with no whitespace")
+            raise gl.vm.UserError("each URL must be https:// with no whitespace")
         if len(u) > 2048:
-            raise Exception("URL exceeds 2048 chars")
+            raise gl.vm.UserError("URL exceeds 2048 chars")
         urls.append(u.strip())
     return urls
 
@@ -174,9 +197,9 @@ def parse_window(label: str, value) -> int:
     try:
         seconds = int(str(value).strip())
     except Exception:
-        raise Exception(f"{label} must be an integer number of seconds")
+        raise gl.vm.UserError(f"{label} must be an integer number of seconds")
     if seconds < MIN_WINDOW_SECONDS or seconds > MAX_WINDOW_SECONDS:
-        raise Exception(
+        raise gl.vm.UserError(
             f"{label} must be between {MIN_WINDOW_SECONDS} and {MAX_WINDOW_SECONDS} seconds"
         )
     return seconds
@@ -369,10 +392,12 @@ def _freeze_urls(urls: list, anchor_text: str = "") -> list:
     payload = json.loads(snap_json)
     items = payload.get("items", [])
     if len(items) != len(urls):
-        raise Exception("snapshot item count mismatch")
+        raise gl.vm.UserError("snapshot item count mismatch")
     any_ok = any(i.get("status") == "ok" for i in items)
     if not any_ok:
-        raise Exception("all URL fetches failed or empty — use stable https pages")
+        raise gl.vm.UserError(
+            "all URL fetches failed or empty — use stable https pages"
+        )
     return items
 
 
@@ -526,10 +551,10 @@ def decide_deal(
     except Exception:
         verdict = None
     if not isinstance(verdict, dict):
-        raise Exception("validator verdict was not an object")
+        raise gl.vm.UserError("validator verdict was not an object")
     decision = str(verdict.get("verdict", "invalid"))
     if decision not in ("pay", "refund"):
-        raise Exception("validators did not return a JSON boolean verdict")
+        raise gl.vm.UserError("validators did not return a JSON boolean verdict")
     return decision == "pay"
 
 
@@ -590,10 +615,10 @@ CRITERIA_TEMPLATE = {
 def _require_hex_sig(sig: str) -> str:
     s = str(sig).strip()
     if not s.startswith("0x") or len(s) < 10:
-        raise Exception("signature must be 0x-hex")
+        raise gl.vm.UserError("signature must be 0x-hex")
     body = s[2:]
     if len(body) > 132 or any(c not in "0123456789abcdefABCDEF" for c in body):
-        raise Exception("signature hex invalid")
+        raise gl.vm.UserError("signature hex invalid")
     return s
 
 
@@ -601,21 +626,21 @@ def _parse_evidence_payload(evidence_json: str) -> dict:
     try:
         data = json.loads(evidence_json)
     except Exception:
-        raise Exception("evidence_json must be JSON object")
+        raise gl.vm.UserError("evidence_json must be JSON object")
     if not isinstance(data, dict):
-        raise Exception("evidence_json must be an object")
+        raise gl.vm.UserError("evidence_json must be an object")
     deal_url = str(data.get("dealUrl", "")).strip()
     if not HTTPS_URL_RE.match(deal_url):
-        raise Exception("dealUrl must be https://")
+        raise gl.vm.UserError("dealUrl must be https://")
     sig = _require_hex_sig(str(data.get("signature", "")))
     amount = _parse_amount(data.get("amount", "0"))
     if "condition_met" not in data or not isinstance(data.get("condition_met"), bool):
-        raise Exception("condition_met must be a boolean")
+        raise gl.vm.UserError("condition_met must be a boolean")
     meta = data.get("metadata", {})
     if meta is None:
         meta = {}
     if not isinstance(meta, dict):
-        raise Exception("metadata must be an object")
+        raise gl.vm.UserError("metadata must be an object")
     return {
         "dealUrl": deal_url,
         "signature": sig,
@@ -637,58 +662,117 @@ def _parse_evidence_payload(evidence_json: str) -> dict:
     }
 
 
+def parse_review_window(value) -> int:
+    try:
+        seconds = int(str(value).strip())
+    except Exception:
+        raise gl.vm.UserError("review_window must be an integer number of seconds")
+    if seconds < MIN_REVIEW_SECONDS or seconds > MAX_REVIEW_SECONDS:
+        raise gl.vm.UserError(
+            f"review_window must be between {MIN_REVIEW_SECONDS} and {MAX_REVIEW_SECONDS} seconds"
+        )
+    return seconds
+
+
+def _require_before_review_deadline(deal: dict, what: str) -> None:
+    """release, dispute and both adjudications are accepted only BEFORE the review deadline;
+    from it on only expire_review is. Transaction order cannot choose between them."""
+    due = int(deal.get("review_deadline", 0))
+    if due and now_seconds() >= due:
+        raise gl.vm.UserError(
+            "the review deadline has passed at "
+            + str(due)
+            + "; only expire_review is accepted, not "
+            + what
+        )
+
+
+class _Store:
+    """A dict-like view over a TreeMap of JSON strings.
+
+    Only the entry that is read or written is touched, so one deal never rewrites the others
+    and the registry has no size limit.
+    """
+
+    def __init__(self, tree):
+        self._tree = tree
+
+    def __contains__(self, key) -> bool:
+        return self._tree.get(str(key), "") != ""
+
+    def __getitem__(self, key):
+        raw = self._tree.get(str(key), "")
+        if raw == "":
+            raise KeyError(key)
+        return json.loads(raw)
+
+    def __setitem__(self, key, value) -> None:
+        self._tree[str(key)] = json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def view_is_complete(view: list) -> bool:
+    """True when the judge read every character of every page that was frozen readable.
+
+    A page that could not be read at all is legitimate (empty) evidence; a page that was
+    readable but only partly shown is not: "nothing there" cannot be said about text the judge
+    never saw.
+    """
+    for row in view:
+        if row.get("status") != "ok":
+            continue
+        shown = sum(len(str(e.get("text", ""))) for e in row.get("excerpts", []))
+        if shown < int(row.get("total_chars", 0)):
+            return False
+    return True
+
+
 class DealGuard(gl.contract.Contract):
     owner: str
-    credits_json: str
-    deals_json: str
-    order_json: str
-    reputation_json: str
-    events_json: str
+    credits: TreeMap[str, str]
+    deals: TreeMap[str, str]
+    deal_order: DynArray[str]
+    reputation: TreeMap[str, str]
+    rounds_log: TreeMap[str, str]
+    events: TreeMap[str, str]
+    event_count: str
     seq: str
     code_snapshot_json: str
-    evidences_json: str
+    evidences: TreeMap[str, str]
+    held_total: str
+    paid_total: str
+    tampered_total: str
 
     def __init__(self, owner_address: str):
         # The owner can pin the code snapshot and hand ownership over. Nothing else.
         self.owner = _require_address("owner_address", owner_address)
-        self.credits_json = "{}"
-        self.deals_json = "{}"
-        self.order_json = "[]"
-        self.reputation_json = "{}"
-        self.events_json = "[]"
+        self.event_count = "0"
         self.seq = "0"
         self.code_snapshot_json = "{}"
-        self.evidences_json = "{}"
+        self.held_total = "0"
+        self.paid_total = "0"
+        self.tampered_total = "0"
 
     def _only_owner(self):
         if str(gl.message.sender_address) != self.owner:
-            raise Exception("only owner")
+            raise gl.vm.UserError("only owner")
 
     def _load_deals(self):
-        return json.loads(self.deals_json)
+        return _Store(self.deals)
 
     def _save_deals(self, deals):
-        self.deals_json = json.dumps(deals, sort_keys=True, separators=(",", ":"))
-
-    def _load_order(self):
-        return json.loads(self.order_json)
-
-    def _save_order(self, order):
-        self.order_json = json.dumps(order, separators=(",", ":"))
+        """Entries are written one by one as they change; nothing to flush."""
 
     def _load_reputation(self):
-        return json.loads(self.reputation_json)
+        return _Store(self.reputation)
 
     def _save_reputation(self, rep):
-        self.reputation_json = json.dumps(rep, sort_keys=True, separators=(",", ":"))
+        """Entries are written one by one as they change; nothing to flush."""
 
     def _credit(self, address: str, amount: int) -> None:
         """Book GEN this contract holds for `address` and owes back on request."""
         if amount <= 0:
             return
-        credits = json.loads(self.credits_json)
-        credits[address] = str(int(credits.get(address, "0")) + amount)
-        self.credits_json = json.dumps(credits, sort_keys=True, separators=(",", ":"))
+        self.credits[address] = str(int(self.credits.get(address, "0")) + amount)
 
     def _rep_of(self, rep, user: str) -> dict:
         key = str(user)
@@ -703,11 +787,11 @@ class DealGuard(gl.contract.Contract):
         return rep[key]
 
     def _append_event(self, kind: str, payload: dict):
-        events = json.loads(self.events_json)
-        events.append({"kind": kind, **payload})
-        if len(events) > MAX_EVENTS:
-            events = events[-MAX_EVENTS:]
-        self.events_json = json.dumps(events, separators=(",", ":"))
+        n = int(self.event_count)
+        self.events["%012d" % n] = json.dumps(
+            {"kind": kind, "n": n, **payload}, sort_keys=True, separators=(",", ":")
+        )
+        self.event_count = str(n + 1)
 
     def _bump_rep(self, client: str, provider: str, pay_provider: bool, disputed: bool):
         rep = self._load_reputation()
@@ -736,7 +820,7 @@ class DealGuard(gl.contract.Contract):
         did = _normalize_id(deal_id)
         deals = self._load_deals()
         if did not in deals:
-            raise Exception("unknown deal_id")
+            raise gl.vm.UserError("unknown deal_id")
         return did, deals
 
     def _take_escrow(self, deal: dict, recipient: str) -> int:
@@ -747,10 +831,12 @@ class DealGuard(gl.contract.Contract):
         """
         amount = int(deal.get("escrow", "0"))
         if amount <= 0:
-            raise Exception("this deal holds no escrow")
+            raise gl.vm.UserError("this deal holds no escrow")
         if int(self.balance) < amount:
-            raise Exception("contract balance is lower than the escrow owed")
+            raise gl.vm.UserError("contract balance is lower than the escrow owed")
         deal["escrow"] = "0"
+        self.held_total = str(int(self.held_total) - amount)
+        self.paid_total = str(int(self.paid_total) + amount)
         deal["paid_to"] = recipient
         deal["paid_amount"] = str(amount)
         deal["paid_at"] = now_seconds()
@@ -781,17 +867,17 @@ class DealGuard(gl.contract.Contract):
         self._only_owner()
         c = str(commit).strip().lower()
         if len(c) != 40 or any(ch not in "0123456789abcdef" for ch in c):
-            raise Exception("commit must be 40-char lowercase git SHA")
+            raise gl.vm.UserError("commit must be 40-char lowercase git SHA")
         eh = str(evidence_hash).strip().lower()
         chash = str(contract_hash).strip().lower()
         if len(eh) != 64 or len(chash) != 64:
-            raise Exception("hashes must be 64-char sha256 hex")
+            raise gl.vm.UserError("hashes must be 64-char sha256 hex")
         for h in (eh, chash):
             if any(ch not in "0123456789abcdef" for ch in h):
-                raise Exception("hash must be hex")
+                raise gl.vm.UserError("hash must be hex")
         expected = _hash_text(c)
         if eh != expected:
-            raise Exception("evidence_hash must equal sha256(commit)")
+            raise gl.vm.UserError("evidence_hash must equal sha256(commit)")
         ts = _sanitize_text("timestamp", timestamp, 64)
         snap = {
             "commit": c,
@@ -815,18 +901,14 @@ class DealGuard(gl.contract.Contract):
         deal = deals[did]
         caller = str(gl.message.sender_address)
         if caller not in (deal["client"], deal["provider"]):
-            raise Exception("only deal parties may store evidence")
+            raise gl.vm.UserError("only deal parties may store evidence")
         parsed = _parse_evidence_payload(evidence_json)
         if int(parsed["amount"]) != int(deal["amount"]):
-            raise Exception("evidence amount must match deal amount")
-        evidences = json.loads(self.evidences_json)
-        evidences[did] = {
-            **parsed,
-            "deal_id": did,
-            "submitter": caller,
-        }
-        self.evidences_json = json.dumps(
-            evidences, sort_keys=True, separators=(",", ":")
+            raise gl.vm.UserError("evidence amount must match deal amount")
+        self.evidences[did] = json.dumps(
+            {**parsed, "deal_id": did, "submitter": caller},
+            sort_keys=True,
+            separators=(",", ":"),
         )
         deal["evidence_payload_hash"] = parsed["payload_hash"]
         deal["condition_met"] = parsed["condition_met"]
@@ -852,6 +934,7 @@ class DealGuard(gl.contract.Contract):
         amount: str,
         delivery_window: str = "86400",
         appeal_window: str = "3600",
+        review_window: str = "604800",
     ) -> None:
         """Client opens a deal and freezes the listing URLs under SHA-256 consensus.
 
@@ -864,16 +947,17 @@ class DealGuard(gl.contract.Contract):
         did = _normalize_id(deal_id)
         deals = self._load_deals()
         if did in deals:
-            raise Exception("deal_id already exists")
+            raise gl.vm.UserError("deal_id already exists")
 
         client = str(gl.message.sender_address)
         provider_addr = _require_address("provider", provider)
         if provider_addr.lower() == client.lower():
-            raise Exception("provider cannot be the client")
+            raise gl.vm.UserError("provider cannot be the client")
         terms_txt = _sanitize_text("terms", terms, MAX_TERMS_LEN)
         amt = _parse_amount(amount)
         window = parse_window("delivery_window", delivery_window)
         appeal_secs = parse_window("appeal_window", appeal_window)
+        review_secs = parse_review_window(review_window)
         urls = _parse_urls(listing_urls_json)
         items = _freeze_urls(urls, terms_txt)
         now = now_seconds()
@@ -886,6 +970,8 @@ class DealGuard(gl.contract.Contract):
             "amount": str(amt),
             "delivery_window": window,
             "appeal_window": appeal_secs,
+            "review_window": review_secs,
+            "review_deadline": 0,
             "ruling_pay": False,
             "ruled_at": 0,
             "appeal_until": 0,
@@ -914,9 +1000,7 @@ class DealGuard(gl.contract.Contract):
             "injection_flags": [],
         }
         self._save_deals(deals)
-        order = self._load_order()
-        order.append(did)
-        self._save_order(order)
+        self.deal_order.append(did)
         self._append_event(
             "DealCreated",
             {
@@ -947,7 +1031,7 @@ class DealGuard(gl.contract.Contract):
 
         def refuse(reason: str) -> str:
             if value <= 0:
-                raise Exception(reason)
+                raise gl.vm.UserError(reason)
             self._credit(caller, value)
             return json.dumps(
                 {
@@ -982,6 +1066,7 @@ class DealGuard(gl.contract.Contract):
         now = now_seconds()
         deal["status"] = STATUS_FUNDED
         deal["escrow"] = str(amount)
+        self.held_total = str(int(self.held_total) + amount)
         deal["funded_at"] = now
         deal["delivery_due_at"] = now + int(deal.get("delivery_window", 86400))
         deals[did] = deal
@@ -1007,14 +1092,12 @@ class DealGuard(gl.contract.Contract):
     def withdraw_credit(self) -> str:
         """Take back GEN that fund() could not escrow for you."""
         caller = str(gl.message.sender_address)
-        credits = json.loads(self.credits_json)
-        amount = int(credits.get(caller, "0"))
+        amount = int(self.credits.get(caller, "0"))
         if amount <= 0:
-            raise Exception("no credit for this address")
+            raise gl.vm.UserError("no credit for this address")
         if int(self.balance) < amount:
-            raise Exception("contract balance is lower than the amount owed")
-        del credits[caller]
-        self.credits_json = json.dumps(credits, sort_keys=True, separators=(",", ":"))
+            raise gl.vm.UserError("contract balance is lower than the amount owed")
+        self.credits[caller] = "0"
         pay_wallet(caller, amount)
         return str(amount)
 
@@ -1027,19 +1110,24 @@ class DealGuard(gl.contract.Contract):
         did, deals = self._deal_or_raise(deal_id)
         deal = deals[did]
         if deal.get("status") != STATUS_FUNDED:
-            raise Exception("deal must be funded")
+            raise gl.vm.UserError("deal must be funded")
         caller = str(gl.message.sender_address)
         if caller != deal["provider"]:
-            raise Exception("only provider may submit delivery")
+            raise gl.vm.UserError("only provider may submit delivery")
         now = now_seconds()
         if now >= int(deal.get("delivery_due_at", 0)):
-            raise Exception("the delivery deadline has passed; the client may reclaim")
+            raise gl.vm.UserError(
+                "the delivery deadline has passed; the client may reclaim"
+            )
 
         urls = _parse_urls(delivery_urls_json)
         items = _freeze_urls(urls, deal.get("terms", ""))
         deal["delivery_urls"] = urls
         deal["delivery_items"] = items
         deal["delivered_at"] = now
+        deal["review_deadline"] = now + int(
+            deal.get("review_window", DEFAULT_REVIEW_SECONDS)
+        )
         deal["status"] = STATUS_DELIVERED
         deals[did] = deal
         self._save_deals(deals)
@@ -1058,13 +1146,15 @@ class DealGuard(gl.contract.Contract):
         deal = deals[did]
         caller = str(gl.message.sender_address)
         if caller != deal["client"]:
-            raise Exception("only client may reclaim")
+            raise gl.vm.UserError("only client may reclaim")
         if deal.get("status") != STATUS_FUNDED:
-            raise Exception("only a funded deal with no delivery can be reclaimed")
+            raise gl.vm.UserError(
+                "only a funded deal with no delivery can be reclaimed"
+            )
         now = now_seconds()
         due = int(deal.get("delivery_due_at", 0))
         if now < due:
-            raise Exception(
+            raise gl.vm.UserError(
                 "the delivery deadline has not passed; reclaim opens at " + str(due)
             )
 
@@ -1087,10 +1177,11 @@ class DealGuard(gl.contract.Contract):
         did, deals = self._deal_or_raise(deal_id)
         deal = deals[did]
         if deal.get("status") != STATUS_DELIVERED:
-            raise Exception("deal must be delivered")
+            raise gl.vm.UserError("deal must be delivered")
         caller = str(gl.message.sender_address)
         if caller != deal["client"]:
-            raise Exception("only client may release")
+            raise gl.vm.UserError("only client may release")
+        _require_before_review_deadline(deal, "release")
 
         provider = deal["provider"]
         amount = self._take_escrow(deal, provider)
@@ -1113,10 +1204,11 @@ class DealGuard(gl.contract.Contract):
         did, deals = self._deal_or_raise(deal_id)
         deal = deals[did]
         if deal.get("status") != STATUS_DELIVERED:
-            raise Exception("deal must be delivered to dispute")
+            raise gl.vm.UserError("deal must be delivered to dispute")
         caller = str(gl.message.sender_address)
         if caller not in (deal["client"], deal["provider"]):
-            raise Exception("only parties may dispute")
+            raise gl.vm.UserError("only parties may dispute")
+        _require_before_review_deadline(deal, "dispute")
         claim_txt = _sanitize_text("claim", claim, MAX_CLAIM_LEN)
         deal["claim"] = claim_txt
         deal["status"] = STATUS_DISPUTED
@@ -1124,10 +1216,15 @@ class DealGuard(gl.contract.Contract):
         self._save_deals(deals)
         self._append_event("DealDisputed", {"id": did, "caller": caller})
 
-    def _judge(self, deal: dict, grounds: str = "") -> bool:
-        """One consensus round over the FROZEN evidence. Reverts on anything unexpected."""
+    def _judge(self, deal: dict, kind: str, grounds: str = "") -> dict:
+        """One consensus round over the FROZEN evidence. Reverts on anything unexpected.
+
+        A refund needs a COMPLETE reading of the delivery: if the judge saw only part of a
+        readable page, "nothing there" cannot be said, so the round is inconclusive and moves
+        nothing. Every round, inconclusive ones included, is kept in rounds_log.
+        """
         if not deal.get("delivery_items"):
-            raise Exception("no delivery snapshot")
+            raise gl.vm.UserError("no delivery snapshot")
         terms = deal.get("terms", "")
         claim = deal.get("claim", "")
         listing_items = deal.get("listing_items", [])
@@ -1146,9 +1243,46 @@ class DealGuard(gl.contract.Contract):
             ),
         )
         pay = decide_deal(terms, claim, listing_items, delivery_items, flags, grounds)
+        shown = _evidence_view(delivery_items, PROMPT_EVIDENCE_CHARS // 2)
+        complete = view_is_complete(shown)
+        if pay:
+            verdict = VERDICT_PAY
+        elif complete:
+            verdict = VERDICT_REFUND
+        else:
+            verdict = VERDICT_INCONCLUSIVE
         deal["injection_flags"] = flags[:6]
         deal["rounds"] = int(deal.get("rounds", 0)) + 1
-        return pay
+        now = now_seconds()
+        record = {
+            "deal_id": deal["deal_id"],
+            "round": deal["rounds"],
+            "kind": kind,
+            "at": now,
+            "by": str(gl.message.sender_address),
+            "model_pay": pay,
+            "verdict": verdict,
+            "delivery_complete": complete,
+            "delivery_read": [
+                {
+                    "url": r["url"],
+                    "status": r["status"],
+                    "sha256": r["sha256"],
+                    "total_chars": r["total_chars"],
+                    "chars_shown": sum(
+                        len(str(e.get("text", ""))) for e in r["excerpts"]
+                    ),
+                }
+                for r in shown
+            ],
+            "listing_sha256": [i.get("content_hash", "") for i in listing_items],
+            "grounds_sha256": _hash_text(grounds) if grounds else "",
+            "injection_flags": flags[:6],
+        }
+        self.rounds_log["%s#%d" % (deal["deal_id"], deal["rounds"])] = json.dumps(
+            record, sort_keys=True, separators=(",", ":")
+        )
+        return {"verdict": verdict, "complete": complete}
 
     def _pay_ruling(
         self, did: str, deals: dict, pay: bool, outcome: str, kind: str
@@ -1199,8 +1333,30 @@ class DealGuard(gl.contract.Contract):
         did, deals = self._deal_or_raise(deal_id)
         deal = deals[did]
         if deal.get("status") not in (STATUS_DISPUTED, STATUS_DELIVERED):
-            raise Exception("deal must be delivered or disputed")
-        pay = self._judge(deal)
+            raise gl.vm.UserError("deal must be delivered or disputed")
+        _require_before_review_deadline(deal, "adjudicate")
+        result = self._judge(deal, "ruling")
+        if result["verdict"] == VERDICT_INCONCLUSIVE:
+            deals[did] = deal
+            self._save_deals(deals)
+            self._append_event(
+                "DealInconclusive",
+                {
+                    "id": did,
+                    "round": deal["rounds"],
+                    "caller": str(gl.message.sender_address),
+                },
+            )
+            return json.dumps(
+                {
+                    "ruling": VERDICT_INCONCLUSIVE,
+                    "final": False,
+                    "round": deal["rounds"],
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        pay = result["verdict"] == VERDICT_PAY
 
         now = now_seconds()
         deal["ruling_pay"] = pay
@@ -1231,16 +1387,19 @@ class DealGuard(gl.contract.Contract):
         did, deals = self._deal_or_raise(deal_id)
         deal = deals[did]
         if deal.get("status") != STATUS_RULED:
-            raise Exception("only a ruled deal can be appealed")
+            raise gl.vm.UserError("only a ruled deal can be appealed")
         caller = str(gl.message.sender_address)
         loser = deal["client"] if deal.get("ruling_pay") else deal["provider"]
         if caller != loser:
-            raise Exception("only the party the ruling went against may appeal")
+            raise gl.vm.UserError("only the party the ruling went against may appeal")
         now = now_seconds()
         if now >= int(deal.get("appeal_until", 0)):
-            raise Exception("the appeal window has closed")
+            raise gl.vm.UserError("the appeal window has closed")
         deal["grounds"] = _sanitize_text("grounds", grounds, MAX_GROUNDS_LEN)
         deal["appellant"] = caller
+        deal["review_deadline"] = now + int(
+            deal.get("review_window", DEFAULT_REVIEW_SECONDS)
+        )
         deal["status"] = STATUS_APPEALED
         deals[did] = deal
         self._save_deals(deals)
@@ -1254,12 +1413,37 @@ class DealGuard(gl.contract.Contract):
         did, deals = self._deal_or_raise(deal_id)
         deal = deals[did]
         if deal.get("status") != STATUS_APPEALED:
-            raise Exception("this deal has no appeal to decide")
-        pay = self._judge(deal, deal.get("grounds", ""))
+            raise gl.vm.UserError("this deal has no appeal to decide")
+        _require_before_review_deadline(deal, "decide the appeal")
+        result = self._judge(deal, "appeal", deal.get("grounds", ""))
+        if result["verdict"] == VERDICT_INCONCLUSIVE:
+            deals[did] = deal
+            self._save_deals(deals)
+            self._append_event(
+                "AppealInconclusive",
+                {
+                    "id": did,
+                    "round": deal["rounds"],
+                    "caller": str(gl.message.sender_address),
+                },
+            )
+            return json.dumps(
+                {
+                    "appeal": VERDICT_INCONCLUSIVE,
+                    "final": False,
+                    "round": deal["rounds"],
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        pay = result["verdict"] == VERDICT_PAY
         upheld = pay == bool(deal.get("ruling_pay"))
         deal["appeal_result"] = "upheld" if upheld else "overturned"
         outcome = ("appeal_pay" if pay else "appeal_refund") + (
             "" if upheld else "_overturned"
+        )
+        deals[did] = (
+            deal  # keep the round counter, flags and appeal result before paying
         )
         return self._pay_ruling(did, deals, pay, outcome, "DealAppealDecided")
 
@@ -1270,10 +1454,10 @@ class DealGuard(gl.contract.Contract):
         did, deals = self._deal_or_raise(deal_id)
         deal = deals[did]
         if deal.get("status") != STATUS_RULED:
-            raise Exception("only a ruled deal with no appeal can be settled")
+            raise gl.vm.UserError("only a ruled deal with no appeal can be settled")
         until = int(deal.get("appeal_until", 0))
         if now_seconds() < until:
-            raise Exception(
+            raise gl.vm.UserError(
                 "the appeal window is still open; settle opens at " + str(until)
             )
         pay = bool(deal.get("ruling_pay"))
@@ -1283,6 +1467,35 @@ class DealGuard(gl.contract.Contract):
             pay,
             "adjudicate_pay" if pay else "adjudicate_refund",
             "DealAdjudicated",
+        )
+
+    @gl.public.write
+    def expire_review(self, deal_id: str) -> str:
+        """No ruling (or no decided appeal) by the committed review deadline.
+
+        A delivered or disputed deal nobody could rule on is refunded to the client: nothing was
+        proven. An appealed deal keeps the first ruling. Anyone may call it, only from the
+        deadline on; before it release, dispute and the adjudications are accepted instead.
+        """
+        did, deals = self._deal_or_raise(deal_id)
+        deal = deals[did]
+        status = deal.get("status")
+        if status not in (STATUS_DELIVERED, STATUS_DISPUTED, STATUS_APPEALED):
+            raise gl.vm.UserError(
+                "only a delivered, disputed or appealed deal can expire its review"
+            )
+        due = int(deal.get("review_deadline", 0))
+        if now_seconds() < due:
+            raise gl.vm.UserError(
+                "the review deadline has not passed; expire_review opens at " + str(due)
+            )
+        pay = bool(deal.get("ruling_pay")) if status == STATUS_APPEALED else False
+        return self._pay_ruling(
+            did,
+            deals,
+            pay,
+            "review_expired_pay" if pay else "review_expired_refund",
+            "DealReviewExpired",
         )
 
     @gl.public.write
@@ -1336,10 +1549,15 @@ class DealGuard(gl.contract.Contract):
         delivery_ok = compare_set(
             deal.get("delivery_urls", []), deal.get("delivery_items", [])
         )
+        was_tampered = bool(
+            deal.get("tampered_listing") or deal.get("tampered_delivery")
+        )
         if not listing_ok:
             deal["tampered_listing"] = True
         if not delivery_ok:
             deal["tampered_delivery"] = True
+        if not was_tampered and (not listing_ok or not delivery_ok):
+            self.tampered_total = str(int(self.tampered_total) + 1)
         deal["checks"] = int(deal.get("checks", 0)) + 1
         deals[did] = deal
         self._save_deals(deals)
@@ -1373,6 +1591,8 @@ class DealGuard(gl.contract.Contract):
         now = now_seconds()
         status = deal.get("status")
         due = int(deal.get("delivery_due_at", 0))
+        review_due = int(deal.get("review_deadline", 0))
+        before_review = now < review_due if review_due else True
         return json.dumps(
             {
                 "deal_id": did,
@@ -1384,9 +1604,16 @@ class DealGuard(gl.contract.Contract):
                 "can_fund": status == STATUS_OPEN,
                 "can_deliver": bool(status == STATUS_FUNDED and now < due),
                 "can_reclaim": bool(status == STATUS_FUNDED and now >= due),
-                "can_release": status == STATUS_DELIVERED,
-                "can_dispute": status == STATUS_DELIVERED,
-                "can_adjudicate": status in (STATUS_DELIVERED, STATUS_DISPUTED),
+                "review_deadline": int(deal.get("review_deadline", 0)),
+                "can_release": bool(status == STATUS_DELIVERED and before_review),
+                "can_dispute": bool(status == STATUS_DELIVERED and before_review),
+                "can_adjudicate": bool(
+                    status in (STATUS_DELIVERED, STATUS_DISPUTED) and before_review
+                ),
+                "can_expire_review": bool(
+                    status in (STATUS_DELIVERED, STATUS_DISPUTED, STATUS_APPEALED)
+                    and not before_review
+                ),
                 "appeal_until": int(deal.get("appeal_until", 0)),
                 "ruling_pay": bool(deal.get("ruling_pay", False)),
                 "can_appeal": bool(
@@ -1395,20 +1622,42 @@ class DealGuard(gl.contract.Contract):
                 "can_settle": bool(
                     status == STATUS_RULED and now >= int(deal.get("appeal_until", 0))
                 ),
-                "can_adjudicate_appeal": status == STATUS_APPEALED,
+                "can_adjudicate_appeal": bool(
+                    status == STATUS_APPEALED and before_review
+                ),
             },
             sort_keys=True,
             separators=(",", ":"),
         )
 
     @gl.public.view
-    def list_deals(self) -> str:
-        return self.order_json
+    def count_deals(self) -> int:
+        return len(self.deal_order)
+
+    @gl.public.view
+    def list_deals(self, offset: int, limit: int) -> str:
+        """[deal_id, status] pairs, one page of the index; never the whole registry."""
+        total = len(self.deal_order)
+        start = max(0, int(offset))
+        count = max(0, min(int(limit), MAX_PAGE))
+        deals = self._load_deals()
+        items = []
+        for i in range(start, min(total, start + count)):
+            did = self.deal_order[i]
+            items.append([did, deals[did].get("status", "")])
+        return json.dumps(
+            {"total": total, "offset": start, "items": items}, separators=(",", ":")
+        )
+
+    @gl.public.view
+    def get_round(self, deal_id: str, round_no: int) -> str:
+        raw = self.rounds_log.get("%s#%d" % (str(deal_id).strip(), int(round_no)), "")
+        return raw if raw != "" else json.dumps({"error": "no such round"})
 
     @gl.public.view
     def get_credit(self, user: str) -> str:
         """GEN (in wei) this contract owes back to `user` outside any deal."""
-        return str(int(json.loads(self.credits_json).get(str(user).strip(), "0")))
+        return str(int(self.credits.get(str(user).strip(), "0")))
 
     @gl.public.view
     def get_escrow_balance(self) -> str:
@@ -1418,9 +1667,11 @@ class DealGuard(gl.contract.Contract):
     @gl.public.view
     def get_reputation(self, user: str) -> str:
         rep = self._load_reputation()
-        row = rep.get(
-            str(user).strip(),
-            {"wins": 0, "losses": 0, "completed": 0, "disputed": 0, "score": 0},
+        key = str(user).strip()
+        row = (
+            rep[key]
+            if key in rep
+            else {"wins": 0, "losses": 0, "completed": 0, "disputed": 0, "score": 0}
         )
         return json.dumps(row, separators=(",", ":"))
 
@@ -1430,32 +1681,32 @@ class DealGuard(gl.contract.Contract):
 
     @gl.public.view
     def get_stats(self) -> str:
-        deals = self._load_deals()
-        total = len(deals)
-        by_status = {}
-        tampered = 0
-        escrowed = paid_out = 0
-        for d in deals.values():
-            st = d.get("status", "?")
-            by_status[st] = int(by_status.get(st, 0)) + 1
-            if d.get("tampered_listing") or d.get("tampered_delivery"):
-                tampered += 1
-            escrowed += int(d.get("escrow", "0"))
-            paid_out += int(d.get("paid_amount", "0"))
+        """Constant-time totals kept as running counters, not a scan of every deal."""
         return json.dumps(
             {
-                "deals": total,
-                "by_status": by_status,
-                "tampered": tampered,
-                "escrowed": str(escrowed),
-                "paid_out": str(paid_out),
+                "deals": len(self.deal_order),
+                "tampered": int(self.tampered_total),
+                "escrowed": self.held_total,
+                "paid_out": self.paid_total,
             },
             separators=(",", ":"),
         )
 
     @gl.public.view
-    def get_events(self) -> str:
-        return self.events_json
+    def count_events(self) -> int:
+        return int(self.event_count)
+
+    @gl.public.view
+    def get_events(self, offset: int, limit: int) -> str:
+        total = int(self.event_count)
+        start = max(0, int(offset))
+        count = max(0, min(int(limit), MAX_PAGE))
+        items = []
+        for i in range(start, min(total, start + count)):
+            items.append(json.loads(self.events.get("%012d" % i, "{}")))
+        return json.dumps(
+            {"total": total, "offset": start, "items": items}, separators=(",", ":")
+        )
 
     @gl.public.view
     def get_code_snapshot(self) -> str:
@@ -1466,11 +1717,11 @@ class DealGuard(gl.contract.Contract):
 
     @gl.public.view
     def get_evidence(self, deal_id: str) -> str:
-        evidences = json.loads(self.evidences_json)
         did = str(deal_id).strip()
-        if did not in evidences:
+        raw = self.evidences.get(did, "")
+        if raw == "":
             return json.dumps({"error": "no evidence for deal_id"})
-        return json.dumps(evidences[did], sort_keys=True)
+        return raw
 
     @gl.public.view
     def get_criteria_template(self) -> str:

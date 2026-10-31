@@ -26,6 +26,8 @@ import {
   getOwner,
   getStats,
   listDeals,
+  expireReview,
+  PAGE_SIZE,
   reclaim,
   release,
   submitDelivery,
@@ -92,6 +94,8 @@ export function DealGuardConsole() {
   const [dealId, setDealId] = useState("my-deal-1");
   const [providerAddr, setProviderAddr] = useState<string>(DEFAULT_PROVIDER);
   const [terms, setTerms] = useState("Deliver a page that contains the word Hello and the delivered report");
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const [totalDeals, setTotalDeals] = useState(0);
   const [amount, setAmount] = useState("1");
   const [deliveryWindow, setDeliveryWindow] = useState("600");
   const [appealWindow, setAppealWindow] = useState("120");
@@ -103,14 +107,15 @@ export function DealGuardConsole() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [ids, o, s, h] = await Promise.all([
-        listDeals(),
+      const [{ ids, total }, o, s, h] = await Promise.all([
+        listDeals(limit),
         getOwner(),
         getStats(),
         getEscrowBalance(),
       ]);
       setOwner(o);
       setHeld(h);
+      setTotalDeals(total);
       setStats(JSON.stringify(s, null, 2));
       const loaded = await Promise.all(ids.map((id) => getDeal(id)));
       setRows((loaded.filter(Boolean) as DealRow[]).reverse());
@@ -125,7 +130,7 @@ export function DealGuardConsole() {
     } finally {
       setLoading(false);
     }
-  }, [address]);
+  }, [address, limit]);
 
   useEffect(() => {
     void refresh();
@@ -281,12 +286,30 @@ export function DealGuardConsole() {
                   .replace("T", " ")
                   .slice(0, 16)} UTC`}
               {r.status === "appealed" && ` · appealed by ${short(r.appellant || "")}`}
+              {["delivered", "disputed", "appealed"].includes(r.status) &&
+                !!r.review_deadline &&
+                ` · review deadline ${new Date(r.review_deadline * 1000)
+                  .toISOString()
+                  .replace("T", " ")
+                  .slice(0, 16)} UTC (after it only expire_review)`}
+              {r.outcome && r.outcome.startsWith("review_expired") && ` · ${r.outcome}`}
               {r.appeal_result && ` · appeal ${r.appeal_result}`}
               <Frozen label="listing frozen" items={r.listing_items} />
               <Frozen label="delivery frozen" items={r.delivery_items} />
             </li>
           ))}
         </ul>
+        {rows.length < totalDeals && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={loading}
+            onClick={() => setLimit(limit + PAGE_SIZE)}
+          >
+            load {Math.min(PAGE_SIZE, totalDeals - rows.length)} older deals (
+            {totalDeals - rows.length} not shown)
+          </button>
+        )}
       </section>
 
       <section className="card">
@@ -460,6 +483,21 @@ export function DealGuardConsole() {
             onClick={() => void run("settle", () => settle(acct, provider, dealId))}
           >
             settle (after the appeal window)
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={
+              disabled ||
+              !selected ||
+              !["delivered", "disputed", "appealed"].includes(selected.status) ||
+              Date.now() / 1000 < (selected.review_deadline ?? 0)
+            }
+            onClick={() => void run("expire_review", () => expireReview(acct, provider, dealId))}
+          >
+            {selected && selected.review_deadline
+              ? `expire_review (from ${new Date(selected.review_deadline * 1000).toISOString().slice(0, 19)} UTC; before it only release, dispute and the rulings work)`
+              : "expire_review (no ruling by the review deadline)"}
           </button>
         </div>
       </section>
