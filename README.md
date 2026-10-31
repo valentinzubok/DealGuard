@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://valentinzubok.github.io/DealGuard/"><img src="https://img.shields.io/badge/Website-Live-0ea5a0?style=for-the-badge" alt="Website" /></a>
-  <a href="https://explorer-studio-dev.genlayer.com/address/0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85"><img src="https://img.shields.io/badge/Studio%20Dev%2061997-Contract-111827?style=for-the-badge" alt="Contract" /></a>
+  <a href="https://explorer-studio-dev.genlayer.com/address/0x9d2F35936528981aab4D3095a1eE93878C7D4E63"><img src="https://img.shields.io/badge/Studio%20Dev%2061997-Contract-111827?style=for-the-badge" alt="Contract" /></a>
   <a href="https://valentinzubok.github.io/DealGuard/console/"><img src="https://img.shields.io/badge/App-Live%20console-ef4444?style=for-the-badge" alt="Console" /></a>
 </p>
 
@@ -24,7 +24,7 @@
 | | |
 |---|---|
 | **Website** | https://valentinzubok.github.io/DealGuard/ |
-| **Contract (Studio Dev, chain 61997)** | [`0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85`](https://explorer-studio-dev.genlayer.com/address/0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85) · [deploy record](STUDIO_DEV_DEPLOY.md) |
+| **Contract (Studio Dev, chain 61997)** | [`0x9d2F35936528981aab4D3095a1eE93878C7D4E63`](https://explorer-studio-dev.genlayer.com/address/0x9d2F35936528981aab4D3095a1eE93878C7D4E63) · [deploy record](STUDIO_DEV_DEPLOY.md) |
 | **Demo video** | [`assets/demo/dealguard-demo.mp4`](https://github.com/valentinzubok/DealGuard/blob/main/assets/demo/dealguard-demo.mp4) (2:45, real Studio Dev txs) |
 | **Live app** | https://valentinzubok.github.io/DealGuard/console/ — MetaMask reads/writes the contract |
 | **Studio** | https://studio-dev.genlayer.com/run-debug |
@@ -68,6 +68,27 @@ sequenceDiagram
   Client->>DealGuard: appeal (losing side, inside the window) → adjudicate_appeal
   DealGuard-->>Client: settled_pay (GEN to provider) or settled_refund (GEN back to client)
 ```
+
+---
+
+## v4: a deadline that splits time in two, and no refund from a partial reading
+
+Reviews of other GenLayer escrows kept asking the same questions. v4 answers them in DealGuard.
+
+| Question | v3 | v4 |
+|---|---|---|
+| A delivery nobody ruled on | stayed delivered for ever | `expire_review` after the committed `review_window` (120 s – 30 d, default 7 d): the client is refunded, or an appealed ruling stands |
+| Can transaction order choose the outcome? | a client could release while a stranger refunded | `release`, `dispute`, `adjudicate` and `adjudicate_appeal` work only **before** the review deadline, `expire_review` only **at or after** it; `get_schedule` never offers both |
+| A refund when the judge saw only part of a page | possible | the round is `inconclusive` and moves nothing. A payment decided from the excerpts it did see still counts |
+| What the judge read | a counter | every round kept: `get_round(deal_id, n)` has the kind, the time, the model's answer, the verdict, whether the reading was complete, the hash and characters read of each page |
+| Registry size | one JSON blob rewritten on every call, events capped at 200 | `TreeMap` per entry plus a `DynArray` index; `list_deals(offset, limit)` and `get_events(offset, limit)` are paged; `get_stats` is a running counter |
+| Linter | bare `Exception` | `gl.vm.UserError` everywhere, `genvm-lint` clean in CI |
+| Runner | `5jycge4q8…` (no longer accepted by Studio Dev) | `babwp9t3…` |
+
+The owner still has only `pin_code_snapshot` and `transfer_ownership`: neither touches a deal.
+[`tests/test_v4.py`](tests/test_v4.py) has 36 tests for this; the on-chain record is in
+[`STUDIO_DEV_DEPLOY.md`](STUDIO_DEV_DEPLOY.md) and the build record in
+[`docs/MILESTONE_V4_HARDENING.md`](docs/MILESTONE_V4_HARDENING.md).
 
 ---
 
@@ -163,12 +184,12 @@ NEXT_PUBLIC_BASE_PATH=/DealGuard NEXT_BASE_PATH=/DealGuard npm run build
 # static files in web/out/
 ```
 
-No `.env` is required: the app defaults to the live Studio Dev contract `0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85` (override with `NEXT_PUBLIC_DEALGUARD_ADDRESS`). Open `/console/` and connect MetaMask — it switches to chain 61997.
+No `.env` is required: the app defaults to the live Studio Dev contract `0x9d2F35936528981aab4D3095a1eE93878C7D4E63` (override with `NEXT_PUBLIC_DEALGUARD_ADDRESS`). Open `/console/` and connect MetaMask — it switches to chain 61997.
 
 ### 3) Deploy / use the live demo on Studio
 
 1. Open [GenLayer Studio Dev](https://studio-dev.genlayer.com/run-debug) (chain 61997)
-2. Paste [`contracts/DealGuard.py`](contracts/DealGuard.py) **or** use the [already-deployed contract](https://explorer-studio-dev.genlayer.com/address/0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85) from the [live console](https://valentinzubok.github.io/DealGuard/console/)
+2. Paste [`contracts/DealGuard.py`](contracts/DealGuard.py) **or** use the [already-deployed contract](https://explorer-studio-dev.genlayer.com/address/0x9d2F35936528981aab4D3095a1eE93878C7D4E63) from the [live console](https://valentinzubok.github.io/DealGuard/console/)
 3. Follow [Quickstart on the site](https://valentinzubok.github.io/DealGuard/quickstart/) or [`examples/demo_flow.md`](examples/demo_flow.md)
 
 Demo listing URL:
@@ -209,10 +230,11 @@ Full tables: [Features](https://valentinzubok.github.io/DealGuard/features/) · 
 
 | Item | Link |
 |------|------|
-| **Contract** | [`0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85`](https://explorer-studio-dev.genlayer.com/address/0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85) |
-| **Source check** | on-chain code sha256 = `193d295f…a4a7` = `contracts/DealGuard.py` |
-| **Lifecycle txs** | a ruling settled after an unused appeal window; a ruling appealed and decided by a second round; a release; and every refused shortcut. Balances before and after — see [`STUDIO_DEV_DEPLOY.md`](STUDIO_DEV_DEPLOY.md) |
+| **Contract** | [`0x9d2F35936528981aab4D3095a1eE93878C7D4E63`](https://explorer-studio-dev.genlayer.com/address/0x9d2F35936528981aab4D3095a1eE93878C7D4E63) |
+| **Source check** | on-chain code sha256 = `f3e462f6…9c74` = `contracts/DealGuard.py` (checked in CI) |
+| **Lifecycle txs** | 23 transactions: a refund the judge could not rest on a partial reading, every refused call at the review deadline, an appeal decided by a second round, a release, and `get_round` for each. See [`STUDIO_DEV_DEPLOY.md`](STUDIO_DEV_DEPLOY.md) |
 | **App** | [`/console/`](https://valentinzubok.github.io/DealGuard/console/) |
+| **v3 (superseded)** | `0xEB22D050…4c85`, run in [`docs/STUDIO_DEV_V3_RUN.md`](docs/STUDIO_DEV_V3_RUN.md); Studio Dev no longer reads it |
 | **v2 (no appeal, superseded)** | `0x5acb72C8…5FCC`, run in [`docs/STUDIO_DEV_V2_RUN.md`](docs/STUDIO_DEV_V2_RUN.md) |
 | **v1 (bookkeeping units, superseded)** | `0x0e4619B7…1AB6` on Studio Dev; Studionet (61999) in [`DEPLOY.md`](DEPLOY.md) |
 

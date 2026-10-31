@@ -2,6 +2,20 @@
 
 All notable product and pin changes. On-chain integrity is anchored by [`CODE_SNAPSHOT.json`](CODE_SNAPSHOT.json) + `pin_code_snapshot` (see [`DEPLOY.md`](DEPLOY.md)).
 
+## [0.6.0] — 2026-10-31 · v4: review deadline, no refund from a partial reading, kept rounds, no cap
+
+| Area | Change |
+|------|--------|
+| Contract | `expire_review(deal_id)`: from the committed review deadline a delivered or disputed deal is refunded to the client; an appealed deal keeps its ruling |
+| Contract | `release`, `dispute`, `adjudicate`, `adjudicate_appeal` are refused from the review deadline on; the schedule never offers both paths |
+| Contract | `create_deal` takes `review_window` (120 s – 30 d, default 7 d), fixed at creation |
+| Contract | a refund decided from a partially read page is `inconclusive` and moves nothing |
+| Contract | `get_round(deal_id, n)` keeps every round; `list_deals(offset, limit)`, `get_events(offset, limit)`, `count_deals`, `count_events` are paged; `get_stats` is a running counter |
+| Contract | deals, credits, reputation, evidence and events in `TreeMap`s with a `DynArray` index: no cap |
+| Contract | `gl.vm.UserError` everywhere; `genvm-lint` clean; runner `py-genlayer:babwp9t3…` (Studio Dev no longer accepts the old one). Deployed → `0x9d2F35936528981aab4D3095a1eE93878C7D4E63` |
+| Tests | 122 tests; `tests/test_v4.py` adds 36 |
+| App | `/console/` shows the review deadline, an `expire_review` button and loads deals a page at a time |
+
 ## [0.5.0] — 2026-10-12 · v3: a verdict is a ruling, not a payment
 
 | Area | Change |

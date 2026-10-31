@@ -1,117 +1,100 @@
-# DealGuard v3 — Studio Dev (chain 61997) deploy record
+# DealGuard v4 — Studio Dev (chain 61997) deploy record
 
 | | |
 |---|---|
 | **Network** | GenLayer Studio Dev / Studio Next — chain `61997` |
 | **RPC** | `https://studio-dev.genlayer.com/api` |
-| **Contract (v3, appeal before payment)** | [`0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85`](https://explorer-studio-dev.genlayer.com/address/0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85) |
-| **Deploy tx** | [`0x41c9f58e…056f99`](https://explorer-studio-dev.genlayer.com/tx/0x41c9f58ed2e7e7f9a24eefa3e43faed7bdb621061c64013df8e73c5de2056f99) |
-| **Owner** | `0x42F132a0519Ee2702A97f1f1f3Fe0E8041A2d542` — can pin the code snapshot and transfer ownership, nothing else |
-| **Source** | [`contracts/DealGuard.py`](contracts/DealGuard.py) — runner `py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng` |
-| **Source sha256** | `193d295fcd4f3eeab046820f0769f30b926b4ef31a83624b316c72fb5e67a4a7` (= `contract_hash` in [`CODE_SNAPSHOT.json`](CODE_SNAPSHOT.json)) |
+| **Contract (v4)** | [`0x9d2F35936528981aab4D3095a1eE93878C7D4E63`](https://explorer-studio-dev.genlayer.com/address/0x9d2F35936528981aab4D3095a1eE93878C7D4E63) |
+| **Deploy tx** | [`0x98a52309…ddb1cf`](https://explorer-studio-dev.genlayer.com/tx/0x98a523098b81bb37e58cbe1d2e21612d1362653d45b654a4294f9fbe5eddb1cf) |
+| **Owner** | `0x5f1C2ba2119001151cc3942A7B7a284bE22565b9` (the deployer) — can pin the code snapshot and transfer ownership, nothing else |
+| **Source** | [`contracts/DealGuard.py`](contracts/DealGuard.py) — runner `py-genlayer:babwp9t37jw9g4j2bccgn14g6x7x9s1f7dsmh7emvz735pz4zxa0` |
+| **Source sha256** | `f3e462f6b0563b52cb902864cc40ce9c4ba72de35e49004ad5fa8cc076c79c74` (= `contract_hash` in [`CODE_SNAPSHOT.json`](CODE_SNAPSHOT.json)) |
 | **App** | https://valentinzubok.github.io/DealGuard/console/ |
-| **v2 (no appeal, superseded)** | `0x5acb72C8B75A03D198044Ef450ccF5b253665FCC` — [its run](docs/STUDIO_DEV_V2_RUN.md) |
-| **v1 (bookkeeping units, superseded)** | `0x0e4619B776f849F0527B32DA86c0ED13c8841AB6` |
+| **v3 (superseded)** | `0xEB22D050…4c85` — [its run](docs/STUDIO_DEV_V3_RUN.md); Studio Dev no longer reads it |
 
 ## Verify the source yourself
 
 ```bash
 curl -s -X POST https://studio-dev.genlayer.com/api -H 'content-type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"gen_getContractCode","params":["0xEB22D050b78024c2f5e6BfBD8BF3E6952BF54c85"]}' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"gen_getContractCode","params":["0x9d2F35936528981aab4D3095a1eE93878C7D4E63"]}' \
   | python3 -c "import sys,json,base64,hashlib; print(hashlib.sha256(base64.b64decode(json.load(sys.stdin)['result'])).hexdigest())"
 shasum -a 256 contracts/DealGuard.py
-# both print 193d295fcd4f3eeab046820f0769f30b926b4ef31a83624b316c72fb5e67a4a7
+# both print f3e462f6b0563b52cb902864cc40ce9c4ba72de35e49004ad5fa8cc076c79c74
 ```
 
-## The run: a ruling waits, an appeal gets a second round
+CI runs the same comparison on every push (`scripts/verify_deployment.py`).
 
-Three fresh accounts, each given 100 test GEN by the faucet:
+## Runner
 
-| Role | Address |
-|---|---|
-| client | `0x54A5Cd828DCFcE0028451a2bFd44Ad914Ec368E6` |
-| provider | `0xE7708C8fe58389d6F95AB9Cc834B96b0aC7BdA39` |
-| stranger | `0x48862176bcaA10AED63963CBFadB059f1ED7eD18` |
+Studio Dev stopped accepting the earlier runner `py-genlayer:5jycge4q8…` between 2026-10-20 and
+2026-10-30: deploys fail with `invalid_contract runner malformed`, and so do reads of contracts
+deployed before. v4 uses the runner listed as current on the
+[official runners page](https://sdk.genlayer.com/main/executors/v0.3/python-sdk/available-runners.html)
+(GenVM v0.3.0-rc10). Earlier deploy attempts with older runners failed before this one.
 
-The listing page is `https://test-server.genlayer.com/static/genvm/hello.html`. The delivery pages
-are files in this repository, fetched at a pinned commit:
-[`delivery-ok.html`](https://github.com/valentinzubok/DealGuard/blob/9ad7e8f099d9d8583ce58fe7dc6decc27312670e/web/public/fixtures/delivery-ok.html)
-and
-[`delivery-placeholder.html`](https://github.com/valentinzubok/DealGuard/blob/9ad7e8f099d9d8583ce58fe7dc6decc27312670e/web/public/fixtures/delivery-placeholder.html).
+## Lint
 
-Terms of every deal: *"The provider must deliver a report page for the order. The delivered page
-must contain the greeting Hello and three completed sections: scope, findings and recommendations."*
+`sh scripts/lint_current_sdk.sh` — `genvm-lint lint` on the file as deployed, then `check` and
+`typecheck` on a copy whose header uses the runner bundled with the public linter (`1jb45aa8…`); the
+linter cannot yet download the rc10 runner. The contract body is byte-identical. Passed, in CI.
 
-Every transaction is listed, including the ten that were refused. Wallet balances are
-`eth_getBalance`; they also move by a fraction of a GEN in fees.
+## The run
+
+Accounts (throwaway test keys): client `0xFC93eA9A607E50b9287317ff3A3ec86be47c693C`, provider
+`0x7Bc84179793406B9aB817255186AC7633CE00279`, stranger `0x3F1ba839a1Aff90015d958Ec0C1Dc897bB5C9bB0`. The
+listing is the GenLayer test page; the deliveries are files of this repository
+([`delivery-ok.md`](web/public/fixtures/v4/delivery-ok.md), [`delivery-long.md`](web/public/fixtures/v4/delivery-long.md)).
 
 | # | Call | Sender | Result | What happened | Tx |
 |---|------|--------|--------|---------------|----|
-| 1 | `create_deal(settle-1)` | client | SUCCESS | listing frozen. 2 GEN, delivery window 3600 s, appeal window 150 s | [`0xc6beae50…b17f49`](https://explorer-studio-dev.genlayer.com/tx/0xc6beae5034af2ad7479f69f02e78bd2a6f2486b014ab18dd9e9596ae7eb17f49) |
-| 2 | `create_deal(appeal-1)` | client | SUCCESS | 3 GEN, appeal window 150 s | [`0x0b7f545b…4eb480`](https://explorer-studio-dev.genlayer.com/tx/0x0b7f545b1206ed0f74ad2bb708a94619b9719560d92f5f4aa51d6728f24eb480) |
-| 3 | `create_deal(release-1)` | client | SUCCESS | 1 GEN, appeal window 150 s | [`0x58106dea…39b31c`](https://explorer-studio-dev.genlayer.com/tx/0x58106dea08b7bceee2fbe9de0141c21cacaad627bfe8e646dcbcbcf62139b31c) |
-| 4 | `fund(settle-1) value 2 GEN` | client | SUCCESS | escrow 2 | [`0xe7dd03ca…3020a8`](https://explorer-studio-dev.genlayer.com/tx/0xe7dd03ca5fa0621fa2053681e15dbe6fdd2a44eacfbafe89f4875158f13020a8) |
-| 5 | `fund(appeal-1) value 3 GEN` | client | SUCCESS | escrow 5 | [`0x85a90bd9…c65bc8`](https://explorer-studio-dev.genlayer.com/tx/0x85a90bd9b5a1919bc3fb26e5de4fd9f044b8a7c9a80df3d54313ef461ec65bc8) |
-| 6 | `fund(release-1) value 1 GEN` | client | SUCCESS | escrow 6 | [`0x0046c8f6…460332`](https://explorer-studio-dev.genlayer.com/tx/0x0046c8f6067a34af65a13831181743f1007e99616dbd66dc15311ccd59460332) |
-| 7 | `submit_delivery(settle-1)` | provider | SUCCESS | `delivery-ok.html` frozen | [`0xa75ea30d…b879cc`](https://explorer-studio-dev.genlayer.com/tx/0xa75ea30db2951d1fd9017821d1792e498f8c2db22831c4aa7c435a6afdb879cc) |
-| 8 | `submit_delivery(appeal-1)` | provider | SUCCESS | `delivery-placeholder.html` frozen | [`0x9121caf4…64f3c1`](https://explorer-studio-dev.genlayer.com/tx/0x9121caf40339935c7b39a564249c4fae72ce028555f8fbc39896e7fd7064f3c1) |
-| 9 | `submit_delivery(release-1)` | provider | SUCCESS | `delivery-ok.html` frozen | [`0xb43f1fd0…6058bf`](https://explorer-studio-dev.genlayer.com/tx/0xb43f1fd0993743a77e1b1b50f4604203127815a7334c8fa9c62e06f6e26058bf) |
-| 10 | `adjudicate(settle-1)` | **provider** | SUCCESS | the provider rules on its own deal the moment it is delivered. Validators: pay. Status `ruled`, escrow still 2 GEN, nothing paid | [`0x78ddd635…9fcaa4`](https://explorer-studio-dev.genlayer.com/tx/0x78ddd6358d1864557eb1d1f466c39183dcabf0828b53d9bfec5944cd3a9fcaa4) |
-| 11 | `settle(settle-1)` | **provider** | **ERROR** | **refused**: the appeal window is still open | [`0x38853af5…0930e2`](https://explorer-studio-dev.genlayer.com/tx/0x38853af53f99edbf069d02a72de5e5eac8b25375f04309de28f078c8830930e2) |
-| 12 | `appeal(settle-1)` | **provider** | **ERROR** | **refused**: only the party the ruling went against may appeal | [`0xa3a4d0c3…1b7917`](https://explorer-studio-dev.genlayer.com/tx/0xa3a4d0c38f598491b30ba7b52d53d9cbc8e669d1fcc3bca68bb91368d91b7917) |
-| 13 | `appeal(settle-1)` | **stranger** | **ERROR** | **refused**: only the party the ruling went against may appeal | [`0xa6154fc4…c17312`](https://explorer-studio-dev.genlayer.com/tx/0xa6154fc4251fb7002eeb385b0b3db1b7be50451f7776918e287d844de3c17312) |
-| 14 | `release(settle-1)` | client | **ERROR** | **refused**: a ruled deal is not released | [`0xc0297f24…434a76`](https://explorer-studio-dev.genlayer.com/tx/0xc0297f24e8afeee685782cf89393176f9b6e12b149475564319943ebd0434a76) |
-| 15 | `dispute(appeal-1)` | client | SUCCESS | dispute: "The page says the report is coming soon. Nothing was delivered." | [`0x558b0b1f…07dea3`](https://explorer-studio-dev.genlayer.com/tx/0x558b0b1f95f7aabb8bce740aae7d69255d7c034deaba81470fa7beaae707dea3) |
-| 16 | `adjudicate(appeal-1)` | stranger | SUCCESS | validators: do not pay. Status `ruled`, escrow still 3 GEN | [`0x4db48bcd…7a8d08`](https://explorer-studio-dev.genlayer.com/tx/0x4db48bcdf2c8472ce00ae71a85ff5850e5f693ee449a8bb9db70b30f357a8d08) |
-| 17 | `appeal(appeal-1)` | **client** | **ERROR** | **refused**: the client won this ruling and cannot appeal it | [`0xcc7f57d3…9417f2`](https://explorer-studio-dev.genlayer.com/tx/0xcc7f57d3e567cb3f1c3c85cebaf0aa763d790af187cd587ffaa70c5d9c9417f2) |
-| 18 | `appeal(appeal-1)` | provider | SUCCESS | the losing side appeals: "The page exists and the order is in progress, so the work should be paid." Status `appealed` | [`0x38eaf380…e37124`](https://explorer-studio-dev.genlayer.com/tx/0x38eaf380ada31b216079645062c456d25a23f15264954cbc0565ba06b8e37124) |
-| 19 | `appeal(appeal-1)` | provider | **ERROR** | **refused**: there is one appeal | [`0x6534d5d3…a020c9`](https://explorer-studio-dev.genlayer.com/tx/0x6534d5d3a7e28468289fbc84b848280d4711958e6b185175926e65313ca020c9) |
-| 20 | `settle(appeal-1)` | stranger | **ERROR** | **refused**: an appealed ruling cannot be settled | [`0x8a5ca869…a7240d`](https://explorer-studio-dev.genlayer.com/tx/0x8a5ca869280c1fcb92e181fb5ce06f36eba0f06a3e4341f104801cd56ea7240d) |
-| 21 | `adjudicate_appeal(appeal-1)` | stranger | SUCCESS | second round, FINALIZED. Validators again: do not pay. Appeal **upheld**, `settled_refund`; the client's 3 GEN came back (wallet 93.8994 → 96.8992 by the next read) | [`0x0c21ea04…bf5dfe`](https://explorer-studio-dev.genlayer.com/tx/0x0c21ea0495dc88d64b5e96c44cbfc2050104544fe3177ec9b06825fa3fbf5dfe) |
-| 22 | `adjudicate_appeal(appeal-1)` | stranger | **ERROR** | **refused**: the appeal verdict is final | [`0xbbeb43be…bd83d2`](https://explorer-studio-dev.genlayer.com/tx/0xbbeb43bed4358f820819f160190f90fbd0a4effe4fbd6530510515545fbd83d2) |
-| 23 | `release(release-1)` | client | SUCCESS | FINALIZED. The client accepts `release-1`; provider +1 GEN | [`0x2f6b16a1…f49981`](https://explorer-studio-dev.genlayer.com/tx/0x2f6b16a17750466da408fbfc9885c695bc4aceeaac6d4c2e8c0f8fd660f49981) |
-| 24 | `appeal(settle-1)` | **client** | **ERROR** | **refused**: 160 s after the ruling the appeal window has closed | [`0x393e55eb…2a58ca`](https://explorer-studio-dev.genlayer.com/tx/0x393e55eba92bc254b0a15492f9226d68f259e4a0d24d42d6b812b1a9922a58ca) |
-| 25 | `settle(settle-1)` | stranger | SUCCESS | FINALIZED. The unappealed ruling is paid: provider wallet 100.9993 → 102.9993, contract balance 0 | [`0x4338a0e8…4a4f7a`](https://explorer-studio-dev.genlayer.com/tx/0x4338a0e88b1bb1d9048684473070d0f393e7f7490c8e79e98e5bfd70674a4f7a) |
-| 26 | `settle(settle-1)` | stranger | **ERROR** | **refused**: already paid | [`0x3a70a970…a221ae`](https://explorer-studio-dev.genlayer.com/tx/0x3a70a9705845bac9a58af5fecedb5b297587558b18560be55b32662bf7a221ae) |
+| 1 | `create_deal(long-1)` | client | SUCCESS | `long-1`: terms ask for a final price in EUR; review window 120 s (the minimum), appeal window 60 s | [`0xa546396b…076c70`](https://explorer-studio-dev.genlayer.com/tx/0xa546396b32f4cb1e812b529a97c1fe9e0b110ad740a91ae55c612d23f1076c70) |
+| 2 | `fund(long-1)` value 1 GEN | client | SUCCESS | FUNDED. 1 GEN escrowed | [`0xb4fcc163…73375c`](https://explorer-studio-dev.genlayer.com/tx/0xb4fcc16357fa3aa0864435f42929fc5c7b1de84093c6e547d3524ecf6973375c) |
+| 3 | `submit_delivery(long-1)` | provider | SUCCESS | delivery frozen: `delivery-long.md`, 8 338 characters, no price in it. Review deadline = delivery + 120 s | [`0x00fc4e43…f16608`](https://explorer-studio-dev.genlayer.com/tx/0x00fc4e43527cbf838401072c21e6aedb6d4a6f4ec84b3b5121753e9dd4f16608) |
+| 4 | `create_deal(late-1)` | client | SUCCESS | `late-1`: same, terms ask for Hello and the final price | [`0xe6680b31…8b9f68`](https://explorer-studio-dev.genlayer.com/tx/0xe6680b31ce94a92a0b529b2ff61a6c85d0941fc40cdcf3156c049672b38b9f68) |
+| 5 | `fund(late-1)` value 1 GEN | client | SUCCESS | funded | [`0x85a6cc24…dbb1cb`](https://explorer-studio-dev.genlayer.com/tx/0x85a6cc24018abc006918aef96ce6719f756d388cee563407a66274ad25dbb1cb) |
+| 6 | `submit_delivery(late-1)` | provider | SUCCESS | delivery frozen: `delivery-ok.md` (172 characters) | [`0x8b85d115…c286d4`](https://explorer-studio-dev.genlayer.com/tx/0x8b85d11531f8ec2e05924f4371f3c1ba89169bc2e074289926916e2e6ac286d4) |
+| 7 | `expire_review(late-1)` | stranger | **ERROR** | `expire_review(late-1)` one step before the deadline: **UserError** `the review deadline has not passed; expire_review opens at 1793483729` | [`0xdba9e3d2…45fb64`](https://explorer-studio-dev.genlayer.com/tx/0xdba9e3d2fcabc9d7c32aff4da10dae78a8306c7aebd57dd92f55d1e44645fb64) |
+| 8 | `adjudicate(long-1)` | stranger | SUCCESS | `adjudicate(long-1)`: the model answered `pay_provider=false`, but the judge read only 1 200 of 8 338 characters → round 1 is **inconclusive**, nothing is ruled, the escrow stays (`get_round`) | [`0x0d67fab5…62e121`](https://explorer-studio-dev.genlayer.com/tx/0x0d67fab5e11a56684c839d60a4fae81d1628a870fa56130eacd304d73c62e121) |
+| 9 | `create_deal(rel-1)` | client | SUCCESS | `rel-1`: review window 600 s | [`0xa18ed588…fd56ea`](https://explorer-studio-dev.genlayer.com/tx/0xa18ed58879baadbe8d9eb903fe7c7d534d395705caff9693e4e9c20f14fd56ea) |
+| 10 | `fund(rel-1)` value 1 GEN | client | SUCCESS | funded | [`0xb7dac96e…eb531b`](https://explorer-studio-dev.genlayer.com/tx/0xb7dac96e25ffd8d8684c399f51707782f796c83da856531dcd33399b7feb531b) |
+| 11 | `submit_delivery(rel-1)` | provider | SUCCESS | delivery frozen | [`0x94cb02d5…105ae4`](https://explorer-studio-dev.genlayer.com/tx/0x94cb02d5eebbff5a107f4fa4171408507c04a06794261a5fbc77fd634f105ae4) |
+| 12 | `release(rel-1)` | client | SUCCESS | FINALIZED. client releases: provider paid 1 GEN | [`0x5c066f21…04f372`](https://explorer-studio-dev.genlayer.com/tx/0x5c066f210d1bf5b8143f6acc9afb989071aed68614198ec66b7dea76f004f372) |
+| 13 | `create_deal(app-1)` | client | SUCCESS | `app-1`: review window 600 s | [`0x321fc306…a0bbc1`](https://explorer-studio-dev.genlayer.com/tx/0x321fc306137c50cddc990e951af26440c1ec1f666e4754a1e89e6dd55aa0bbc1) |
+| 14 | `fund(app-1)` value 1 GEN | client | SUCCESS | funded | [`0xf79c104d…a8769b`](https://explorer-studio-dev.genlayer.com/tx/0xf79c104d7f0a21843202f2494754e0ebedc2efa75ccea10d5719a17962a8769b) |
+| 15 | `submit_delivery(app-1)` | provider | SUCCESS | delivery frozen | [`0xefd6302b…4ffecb`](https://explorer-studio-dev.genlayer.com/tx/0xefd6302bd4e4020af930b7867b087c0e2c525287f03ab023d7456526194ffecb) |
+| 16 | `adjudicate(app-1)` | stranger | SUCCESS | `adjudicate(app-1)`: whole page read, ruling **pay**, not paid yet | [`0xd55d8fad…dbb702`](https://explorer-studio-dev.genlayer.com/tx/0xd55d8fad808eeea678f978ec26a0cae1291c85e3bab3253b653b9b3ebddbb702) |
+| 17 | `appeal(app-1)` | client | SUCCESS | `appeal(app-1)`: opens a fresh review deadline for the second round | [`0xc2115521…1ed208`](https://explorer-studio-dev.genlayer.com/tx/0xc21155214e95375b706c9f3ab23550eec85b81c64fe009ba3f11462ce61ed208) |
+| 18 | `adjudicate_appeal(app-1)` | stranger | SUCCESS | FINALIZED. `adjudicate_appeal`: second round **pay** → upheld, provider paid 1 GEN. `get_round` has both rounds | [`0x310d978b…b63a86`](https://explorer-studio-dev.genlayer.com/tx/0x310d978b6d7628447186736383322ebc8dd1570b38a6f0031685ac1a07b63a86) |
+| 19 | `release(late-1)` | client | **ERROR** | `release(late-1)` at the deadline: **UserError** `the review deadline has passed at 1793483729; only expire_review is accepted, not release` | [`0xf45fd014…c675f5`](https://explorer-studio-dev.genlayer.com/tx/0xf45fd0144f0e1b130b302a1c92143e3ddf6bf0e648efa523de5516614cc675f5) |
+| 20 | `adjudicate(late-1)` | stranger | **ERROR** | `adjudicate(late-1)` at the deadline: **UserError** `…only expire_review is accepted, not adjudicate` | [`0x5a1d2ee4…bbb9d9`](https://explorer-studio-dev.genlayer.com/tx/0x5a1d2ee410b1bf5ad2c5d7a68b9c118c4b959a3e143425c38c1a0bba73bbb9d9) |
+| 21 | `dispute(late-1)` | client | **ERROR** | `dispute(late-1)` at the deadline: **UserError** `…only expire_review is accepted, not dispute` | [`0xec8b2b09…73fc9d`](https://explorer-studio-dev.genlayer.com/tx/0xec8b2b09c9bc968479c17c19a6a845bc09257146fdcbe8149bc55265be73fc9d) |
+| 22 | `expire_review(late-1)` | stranger | SUCCESS | FINALIZED. `expire_review(late-1)`: client refunded 1 GEN | [`0x08807118…ec32e1`](https://explorer-studio-dev.genlayer.com/tx/0x088071184b8908165de7cf9970ce52e61dd2dbaa56b5e99942017f7c13ec32e1) |
+| 23 | `expire_review(long-1)` | stranger | SUCCESS | FINALIZED. `expire_review(long-1)`: the deal nobody could rule on is refunded to the client | [`0xb0828a8e…904cd8`](https://explorer-studio-dev.genlayer.com/tx/0xb0828a8e3e73e67a5e2af9061db662cdd1522564d0ecc74f51e139e0db904cd8) |
 
-### What this shows
+### What the run shows
 
-| Deal | Amount | Path | Paid to |
-|---|---|---|---|
-| `settle-1` | 2 GEN | provider calls `adjudicate` at once → ruling *pay* → cannot settle, cannot be appealed by the winner or a stranger → window passes → `settle` | provider, **160 s after the ruling and not before** |
-| `appeal-1` | 3 GEN | placeholder delivery → `dispute` → ruling *refund* → the provider appeals → second round upholds | **client** (refund), decided by two independent rounds |
-| `release-1` | 1 GEN | client accepts | provider |
+* **A refund never rests on a partial reading.** Tx 8: the model said refund, the judge had read 1 200
+  of 8 338 characters, so `get_round("long-1", 1)` has `verdict: inconclusive`,
+  `delivery_complete: false`, `model_pay: false`, and the deal stayed `delivered` with 1 GEN escrowed.
+  A deal with no conclusive ruling does not hang: tx 23 refunds it after the review deadline.
+* **The review deadline splits time in two.** Txs 7 and 19–22 on `late-1`: one step before the deadline
+  only the party actions are open and `expire_review` is refused; at the deadline `release`,
+  `adjudicate` and `dispute` are each refused with their own message and `expire_review` works.
+  `get_schedule` at the deadline reads `can_expire_review: true` with `can_release`, `can_dispute` and
+  `can_adjudicate` all false.
+* **Every round is kept.** `get_round("app-1", 1)` (ruling) and `("app-1", 2)` (appeal) hold the time,
+  the model's answer, the verdict, the completeness and the SHA-256 of the page that was read
+  (`afa6ed64…`, 172 of 172 characters).
+* **Money.** Four deals, 4 GEN in and 4 GEN out (provider 1 + 1, client 1 + 1 back); the contract
+  holds 0. `get_stats` → `{"deals":4,"tampered":0,"escrowed":"0","paid_out":"4000000000000000000"}`.
+* **Paged registry.** `list_deals(0, 10)` → `long-1 settled_refund`, `late-1 settled_refund`,
+  `rel-1 completed`, `app-1 settled_pay`.
 
-Row 10 is the case v2 could not handle: the provider asked for a verdict on its own deal as soon
-as the delivery was frozen. In v2 that one round would have paid it in the same transaction. Here
-the ruling moved nothing (row 11 is the provider trying to collect), and the client had the
-whole window to object.
+### What this run did not show
 
-Rows 18 and 21 are the appeal: the losing side stated its grounds, and a second consensus round
-looked at the same frozen evidence again, with those grounds in view as an argument and without
-being told what the first round decided.
-
-End state, read from chain:
-
-```
-get_stats           {"deals":3,"by_status":{"settled_pay":1,"settled_refund":1,"completed":1},"tampered":0,"escrowed":"0","paid_out":"6000000000000000000"}
-get_escrow_balance  0
-contract balance    0
-client              100 → 96.9991   (6 GEN escrowed, 3 GEN refunded by the appeal round)
-provider            100 → 102.9993  (+3 GEN: one settled ruling, one release)
-```
-
-## Reproducible app path
-
-1. Open https://valentinzubok.github.io/DealGuard/console/ — deals, rulings, appeal deadlines and the escrow balance are read from chain with no wallet.
-2. **Connect MetaMask** (the app switches to chain 61997) and **Get test GEN**.
-3. Client: `create_deal` (amount in GEN, delivery window and appeal window in seconds) → `fund`.
-4. Provider account: `submit_delivery` before the deadline.
-5. Client: `release`. Or anyone: `adjudicate` → a ruling. Then the losing side: `appeal` → anyone: `adjudicate_appeal`. With no appeal: `settle` once the window has closed.
-
-## Notes on Studio Dev
-
-- The header must be `# v0.3.0` followed by the pinned `Depends` line.
-- Every transaction carries a fee deposit (`genlayer-js@2.0.0-rc.1`, `studioDevnet`, `estimateTransactionFees`).
-- A payout reaches the wallet when the transaction is finalized, not when it is accepted.
-- The demo video in `assets/demo/` was recorded against v1 and shows the earlier, unit-based contract.
+* The 260-deal registry, the 200-event cap that is gone and the event paging are covered by unit tests
+  (`test_deals_keep_being_created_far_past_the_old_event_cap_and_events_are_paged` and neighbours), not
+  by 260 transactions on chain.
+* Whether the model answers refund for a given page is up to the model; the contract's rule (no
+  refund from a partial reading) is what the run demonstrates, and `tests/test_v4.py` covers every other
+  combination (whole page and refund, partial page and pay, inconclusive appeal).
