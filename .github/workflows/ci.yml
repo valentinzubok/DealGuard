@@ -35,8 +35,16 @@ jobs:
       - name: Install test dependencies
         run: python3 -m pip install -r requirements-dev.txt
 
-      - name: Unit tests (create_deal, fund, submit_delivery, dispute, …)
+      - name: GenVM lint (the check stewards run)
+        run: |
+          python3 -m pip install genvm-linter
+          sh scripts/lint_current_sdk.sh
+
+      - name: Unit tests (create_deal, fund, submit_delivery, dispute, review deadline, …)
         run: python3 -m pytest -q
+
+      - name: Deployed code equals this source
+        run: python3 scripts/verify_deployment.py
 
       - name: Upload integrity pack
         uses: actions/upload-artifact@v4

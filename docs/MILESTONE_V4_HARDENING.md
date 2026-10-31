@@ -10,7 +10,7 @@ runner Studio Dev accepts today.
 | | |
 |---|---|
 | Base (milestone 2, accepted) | `66cdd10c06a91405d3557ba4c772e59dc6306660` |
-| Code diff | `https://github.com/valentinzubok/DealGuard/compare/66cdd10c06a91405d3557ba4c772e59dc6306660...MILESTONE_SHA` |
+| Code diff | `https://github.com/valentinzubok/DealGuard/compare/66cdd10c06a91405d3557ba4c772e59dc6306660...milestone-hardening-v4` |
 | New deployment | [`0x9d2F35936528981aab4D3095a1eE93878C7D4E63`](https://explorer-studio-dev.genlayer.com/address/0x9d2F35936528981aab4D3095a1eE93878C7D4E63) — code sha256 `f3e462f6…9c74` |
 | On-chain run | [`STUDIO_DEV_DEPLOY.md`](../STUDIO_DEV_DEPLOY.md): 23 transactions, 5 of them refused, 4 GEN in and 4 GEN out |
 | Tests | [`tests/test_v4.py`](../tests/test_v4.py): 36 new, 122 in total; `genvm-lint` clean in CI |
